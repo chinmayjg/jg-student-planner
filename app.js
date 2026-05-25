@@ -393,25 +393,72 @@ function formatDisplayDate(dateStr) {
   return d.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-/** Add or update a schedule task */
+/** Get all dates between two date strings */
+function getDateRange(startStr, endStr) {
+  const dates = [];
+  let current = new Date(startStr + 'T00:00:00');
+  const end = new Date(endStr + 'T00:00:00');
+  while (current <= end) {
+    dates.push(formatDate(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
+/** Add or update a schedule task (supports daily, weekly, monthly ranges) */
 async function saveTask(taskData, taskId = null) {
   try {
     const colRef = collection(db, 'users', currentUser.uid, 'schedules');
+
     if (taskId) {
-      await updateDoc(doc(db, 'users', currentUser.uid, 'schedules', taskId), { ...taskData, updatedAt: serverTimestamp() });
+      // Editing existing task — always single update
+      await updateDoc(doc(db, 'users', currentUser.uid, 'schedules', taskId), {
+        ...taskData, updatedAt: serverTimestamp()
+      });
       showToast('Task updated!', 'success');
+
+    } else if (taskData.planType === 'weekly' || taskData.planType === 'monthly') {
+      // Create one task per day in the date range
+      const dates = getDateRange(taskData.startDate, taskData.endDate);
+      if (dates.length === 0) { showToast('Invalid date range.', 'error'); return; }
+      if (dates.length > 60) { showToast('Range too large. Max 60 days allowed.', 'warning'); return; }
+
+      // Save all tasks in parallel
+      await Promise.all(dates.map(date =>
+        addDoc(colRef, {
+          subject: taskData.subject,
+          topic: taskData.topic,
+          date,
+          startTime: taskData.startTime,
+          endTime: taskData.endTime,
+          priority: taskData.priority,
+          category: taskData.category,
+          planType: taskData.planType,
+          completed: false,
+          createdAt: serverTimestamp(),
+          userId: currentUser.uid
+        })
+      ));
+      showToast(`✅ ${dates.length} tasks created (${taskData.planType} plan)!`, 'success');
+
     } else {
-      await addDoc(colRef, { ...taskData, completed: false, createdAt: serverTimestamp(), userId: currentUser.uid });
+      // Daily — single task
+      await addDoc(colRef, {
+        ...taskData, completed: false,
+        createdAt: serverTimestamp(),
+        userId: currentUser.uid
+      });
       showToast('Task added!', 'success');
     }
+
     closeModal('task-modal');
     loadSchedule(document.querySelector('.filter-btn.active')?.dataset.filter || 'today');
     if (activeSection === 'dashboard') loadTodaysTasks();
+
   } catch (e) {
     showToast('Failed to save task: ' + e.message, 'error');
   }
 }
-
 /** Toggle task completion */
 async function toggleTask(taskId, completed) {
   try {
