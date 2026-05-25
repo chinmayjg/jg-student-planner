@@ -907,21 +907,42 @@ function setupForms() {
   document.getElementById('task-form')?.addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
+    const editId = f.dataset.editId || null;
+    const planType = document.querySelector('.plan-type-btn.active')?.dataset.type || 'daily';
+
+    // Validate dates based on plan type
+    if (!editId && (planType === 'weekly' || planType === 'monthly')) {
+      if (!f.startDate.value || !f.endDate.value) {
+        showToast('Please select both start and end dates.', 'error'); return;
+      }
+      if (new Date(f.startDate.value) > new Date(f.endDate.value)) {
+        showToast('Start date must be before end date.', 'error'); return;
+      }
+    } else {
+      if (!f.date.value) {
+        showToast('Please select a date.', 'error'); return;
+      }
+    }
+
     const data = {
       subject: f.subject.value.trim(),
       topic: f.topic.value.trim(),
-      date: f.date.value,
+      date: f.date.value || f.startDate?.value || '',
+      startDate: f.startDate?.value || '',
+      endDate: f.endDate?.value || '',
       startTime: f.startTime.value,
       endTime: f.endTime.value,
       priority: f.priority.value,
-      category: f.category.value
+      category: f.category.value,
+      planType
     };
-    const editId = f.dataset.editId || null;
+
     await saveTask(data, editId);
     delete f.dataset.editId;
     document.getElementById('task-modal-title').textContent = 'Add New Task';
+    setPlanType('daily'); // reset to daily after save
   });
-
+  
   // EXAM FORM
   document.getElementById('exam-form')?.addEventListener('submit', async e => {
     e.preventDefault();
