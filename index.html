@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JG Lucknow Study Planner</title>
+  <meta name="description" content="A comprehensive study planner for Judicial Services aspirants in Lucknow" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js for analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- jsPDF for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ── TOAST CONTAINER ── -->
+<div id="toast-container"></div>
+
+<!-- ════════════════════════════════════════════════════
+     AUTH SCREEN
+════════════════════════════════════════════════════ -->
+<div id="auth-container">
+  <div class="auth-box">
+
+    <!-- Logo -->
+    <div class="auth-logo">
+      <span class="logo-icon">⚖️</span>
+      <h1>JG Lucknow Study Planner</h1>
+      <p>Judicial Services Preparation Platform</p>
+    </div>
+
+    <!-- LOGIN VIEW -->
+    <div id="auth-login" class="auth-view active">
+      <h2>Welcome Back</h2>
+      <p class="auth-subtitle">Sign in to continue your preparation journey</p>
+      <form id="login-form">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" name="email" placeholder="your@email.com" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="Enter your password" required />
+          <div class="forgot-link"><a id="go-forgot">Forgot Password?</a></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Sign In →</button>
+      </form>
+      <p class="auth-switch">Don't have an account? <a id="go-register">Create one</a></p>
+    </div>
+
+    <!-- REGISTER VIEW -->
+    <div id="auth-register" class="auth-view">
+      <h2>Create Account</h2>
+      <p class="auth-subtitle">Join thousands of judiciary aspirants preparing smarter</p>
+      <form id="register-form">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" name="name" placeholder="Your full name" required />
+        </div>
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" name="email" placeholder="your@email.com" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="Min. 6 characters" required minlength="6" />
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" name="confirmPassword" placeholder="Repeat password" required />
+        </div>
+        <button type="submit" class="btn btn-gold btn-full">Create Account →</button>
+      </form>
+      <p class="auth-switch">Already have an account? <a id="go-login">Sign in</a></p>
+    </div>
+
+    <!-- FORGOT PASSWORD VIEW -->
+    <div id="auth-forgot" class="auth-view">
+      <h2>Reset Password</h2>
+      <p class="auth-subtitle">Enter your email to receive a reset link</p>
+      <form id="forgot-form">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" name="email" placeholder="your@email.com" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Send Reset Link</button>
+      </form>
+      <p class="auth-switch"><a id="back-to-login">← Back to Login</a></p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════ -->
+<div id="app-container" style="display:none; flex-direction:row;">
+
+  <!-- ── SIDEBAR ── -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="logo-icon">⚖️</span>
+        <div class="sidebar-logo-text">
+          <h2>JG Lucknow</h2>
+          <span>Study Planner</span>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-section="dashboard">
+        <span class="nav-icon">🏠</span> Dashboard
+      </div>
+      <div class="nav-item" data-section="schedule">
+        <span class="nav-icon">📅</span> Schedule Planner
+      </div>
+      <div class="nav-item" data-section="exams">
+        <span class="nav-icon">📋</span> Upcoming Exams
+      </div>
+      <div class="nav-item" data-section="tests">
+        <span class="nav-icon">📝</span> Mock Test Scores
+      </div>
+      <div class="nav-item" data-section="progress">
+        <span class="nav-icon">📊</span> Progress Report
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">👤</div>
+        <div class="user-details">
+          <div class="user-name" id="user-name-display">Aspirant</div>
+          <div class="user-role">Judiciary Aspirant</div>
+        </div>
+      </div>
+      <div class="sidebar-actions">
+        <button id="logout-btn" class="btn btn-secondary btn-sm">Sign Out</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN CONTENT ── -->
+  <div id="main-content">
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <button id="sidebar-toggle">☰</button>
+        <span class="page-title">⚖️ JG Study Planner</span>
+      </div>
+      <div class="top-bar-right">
+        <button id="theme-toggle" title="Toggle theme">☀️</button>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="content-area">
+
+      <!-- ══════════════════════════════════
+           DASHBOARD SECTION
+      ══════════════════════════════════ -->
+      <div id="section-dashboard" class="section active">
+
+        <div class="dashboard-header">
+          <h2 id="user-greeting">Welcome back! 👋</h2>
+          <p>Here's your preparation overview for today.</p>
+        </div>
+
+        <!-- Daily Quote -->
+        <div id="daily-quote">
+          <span class="quote-text">"Loading your daily wisdom..."</span>
+          <span class="quote-author">— JG Lucknow</span>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-icon">🔥</div>
+            <div class="stat-label">Study Streak</div>
+            <div class="stat-value" id="streak-count">0</div>
+            <div class="stat-sub">Consecutive days</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-label">Today's Progress</div>
+            <div class="stat-value" id="today-progress-pct">0%</div>
+            <div class="stat-sub" id="today-progress-label">0/0 tasks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-label">Tests Attempted</div>
+            <div class="stat-value" id="dash-test-count">—</div>
+            <div class="stat-sub">Total mock tests</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-label">Avg Score</div>
+            <div class="stat-value" id="dash-avg-score">—</div>
+            <div class="stat-sub">Prelims average</div>
+          </div>
+        </div>
+
+        <!-- Today's progress bar -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-title">📈 Today's Study Progress</div>
+          <div class="progress-wrap">
+            <div class="progress-fill" id="today-progress-bar" style="width:0%"></div>
+          </div>
+          <div class="progress-label" id="today-progress-label-bar">Add tasks in Schedule Planner to track progress</div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+
+          <!-- Today's Tasks -->
+          <div class="card">
+            <div class="card-title">📌 Today's Tasks</div>
+            <div id="todays-tasks">
+              <p class="empty-msg">Loading...</p>
+            </div>
+          </div>
+
+          <!-- Upcoming Exams -->
+          <div class="card">
+            <div class="card-title">🗓️ Upcoming Exams</div>
+            <div id="upcoming-exams-preview">
+              <p class="empty-msg">Loading...</p>
+            </div>
+          </div>
+
+          <!-- Latest Scores -->
+          <div class="card full-width">
+            <div class="card-title">🏆 Latest Mock Test Scores</div>
+            <div id="latest-scores">
+              <p class="empty-msg">No scores recorded yet.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════
+           SCHEDULE SECTION
+      ══════════════════════════════════ -->
+      <div id="section-schedule" class="section">
+
+        <div class="section-header">
+          <h2>📅 Schedule Planner</h2>
+          <div class="section-actions">
+            <div class="search-bar">
+              <input type="text" id="schedule-search" placeholder="Search tasks..." />
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openModal('task-modal')">+ Add Task</button>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <button class="filter-btn active" data-filter="today">📅 Today</button>
+          <button class="filter-btn" data-filter="week">📆 This Week</button>
+          <button class="filter-btn" data-filter="month">🗓️ This Month</button>
+          <button class="filter-btn" data-filter="all">📋 All Tasks</button>
+        </div>
+
+        <div id="schedule-list">
+          <p class="empty-msg">Loading your schedule...</p>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════
+           EXAMS SECTION
+      ══════════════════════════════════ -->
+      <div id="section-exams" class="section">
+
+        <div class="section-header">
+          <h2>📋 Upcoming Exams</h2>
+          <button class="btn btn-primary btn-sm" onclick="openModal('exam-modal')">+ Add Exam</button>
+        </div>
+
+        <div id="exams-list" class="exams-grid">
+          <p class="empty-msg">Loading exams...</p>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════
+           MOCK TESTS SECTION
+      ══════════════════════════════════ -->
+      <div id="section-tests" class="section">
+
+        <div class="section-header">
+          <h2>📝 Mock Test Score Tracker</h2>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tab-prelims">Prelims</button>
+          <button class="tab-btn" data-tab="tab-mains">Mains</button>
+        </div>
+
+        <!-- PRELIMS TAB -->
+        <div id="tab-prelims" class="tab-panel active">
+          <div class="section-header" style="margin-bottom:16px">
+            <h3 style="font-size:18px">Prelims Scores</h3>
+            <button class="btn btn-primary btn-sm" onclick="openModal('prelims-modal')">+ Add Score</button>
+          </div>
+          <div id="prelims-list">
+            <p class="empty-msg">No prelims scores recorded yet.</p>
+          </div>
+        </div>
+
+        <!-- MAINS TAB -->
+        <div id="tab-mains" class="tab-panel">
+          <div class="section-header" style="margin-bottom:16px">
+            <h3 style="font-size:18px">Mains Scores</h3>
+            <button class="btn btn-primary btn-sm" onclick="openModal('mains-modal')">+ Add Score</button>
+          </div>
+          <div id="mains-list">
+            <p class="empty-msg">No mains scores recorded yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════
+           PROGRESS SECTION
+      ══════════════════════════════════ -->
+      <div id="section-progress" class="section">
+
+        <div class="section-header">
+          <h2>📊 Progress Report & SWOT Analysis</h2>
+          <button id="export-pdf-btn" class="btn btn-gold btn-sm">📥 Export PDF</button>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="progress-stats">
+          <div class="progress-stat">
+            <div class="stat-num" id="stat-total-tests">0</div>
+            <div class="stat-lbl">Total Tests</div>
+          </div>
+          <div class="progress-stat">
+            <div class="stat-num" id="stat-avg-score">0%</div>
+            <div class="stat-lbl">Avg Prelims Score</div>
+          </div>
+          <div class="progress-stat">
+            <div class="stat-num" id="stat-completion">0%</div>
+            <div class="stat-lbl">Schedule Completion</div>
+          </div>
+          <div class="progress-stat">
+            <div class="stat-num" id="stat-prelims-count">0</div>
+            <div class="stat-lbl">Prelims Attempted</div>
+          </div>
+        </div>
+
+        <!-- Overall completion bar -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-title">📈 Overall Schedule Completion</div>
+          <div class="progress-wrap" style="height:14px">
+            <div class="progress-fill" id="completion-bar" style="width:0%"></div>
+          </div>
+          <div class="progress-label" id="completion-label" style="margin-top:8px">No data yet</div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+          <div class="card">
+            <div class="card-title">📚 Subject-wise Performance (Mains)</div>
+            <div class="chart-wrap"><canvas id="subject-chart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">📅 Monthly Prelims Trend</div>
+            <div class="chart-wrap"><canvas id="monthly-chart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- SWOT Analysis -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-title">🧠 SWOT Analysis</div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Auto-generated based on your test scores and schedule performance</p>
+          <div class="swot-grid">
+            <div class="swot-card swot-strengths">
+              <h3>💪 Strengths</h3>
+              <ul id="swot-strengths"><li>Add test scores to generate analysis</li></ul>
+            </div>
+            <div class="swot-card swot-weaknesses">
+              <h3>⚠️ Weaknesses</h3>
+              <ul id="swot-weaknesses"><li>No data available yet</li></ul>
+            </div>
+            <div class="swot-card swot-opportunities">
+              <h3>🚀 Opportunities</h3>
+              <ul id="swot-opportunities"><li>Start tracking to see recommendations</li></ul>
+            </div>
+            <div class="swot-card swot-threats">
+              <h3>🔴 Threats</h3>
+              <ul id="swot-threats"><li>No data available yet</li></ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div><!-- /main-content -->
+</div><!-- /app-container -->
+
+<!-- ════════════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════════════ -->
+
+<!-- ADD/EDIT TASK MODAL -->
+<div id="task-modal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="task-modal-title">Add New Task</h3>
+      <button class="modal-close" onclick="closeModal('task-modal')">✕</button>
+    </div>
+    <form id="task-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category">
+            <option value="law">⚖️ Law Subjects</option>
+            <option value="gk">📖 GK/GS Subjects</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select name="priority">
+            <option value="high">🔴 High</option>
+            <option value="medium" selected>🟡 Medium</option>
+            <option value="low">🟢 Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Subject Name</label>
+        <input type="text" name="subject" placeholder="e.g. Constitutional Law, CPC, GK" required />
+      </div>
+      <div class="form-group">
+        <label>Topic</label>
+        <input type="text" name="topic" placeholder="e.g. Fundamental Rights – Articles 12–35" required />
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" required />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Time</label>
+          <input type="time" name="startTime" required />
+        </div>
+        <div class="form-group">
+          <label>End Time</label>
+          <input type="time" name="endTime" required />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('task-modal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ADD EXAM MODAL -->
+<div id="exam-modal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Upcoming Exam</h3>
+      <button class="modal-close" onclick="closeModal('exam-modal')">✕</button>
+    </div>
+    <form id="exam-form">
+      <div class="form-group">
+        <label>Exam Name</label>
+        <input type="text" name="examName" placeholder="e.g. UP PCS-J Prelims 2025" required />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Exam Date</label>
+          <input type="date" name="examDate" required />
+        </div>
+        <div class="form-group">
+          <label>Stage</label>
+          <select name="stage">
+            <option value="Prelims">Prelims</option>
+            <option value="Mains">Mains</option>
+            <option value="Interview">Interview</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea name="notes" placeholder="Syllabus notes, exam pattern, registration deadline..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('exam-modal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Exam</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- PRELIMS SCORE MODAL -->
+<div id="prelims-modal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Prelims Score</h3>
+      <button class="modal-close" onclick="closeModal('prelims-modal')">✕</button>
+    </div>
+    <form id="prelims-form">
+      <div class="form-group">
+        <label>Mock Test Name</label>
+        <input type="text" name="testName" placeholder="e.g. PCS-J Mock #12 — Vajiram" required />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Total Marks</label>
+          <input type="number" name="total" placeholder="150" min="1" required />
+        </div>
+        <div class="form-group">
+          <label>Marks Obtained</label>
+          <input type="number" name="obtained" placeholder="98" min="0" required />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Date of Test</label>
+        <input type="date" name="date" required />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('prelims-modal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Score</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MAINS SCORE MODAL -->
+<div id="mains-modal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Mains Score</h3>
+      <button class="modal-close" onclick="closeModal('mains-modal')">✕</button>
+    </div>
+    <form id="mains-form">
+      <div class="form-group">
+        <label>Subject Name</label>
+        <input type="text" name="subject" placeholder="e.g. Constitutional Law" required />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Total Marks</label>
+          <input type="number" name="total" placeholder="200" min="1" required />
+        </div>
+        <div class="form-group">
+          <label>Marks Obtained</label>
+          <input type="number" name="obtained" placeholder="140" min="0" required />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" required />
+      </div>
+      <div class="form-group">
+        <label>Remarks</label>
+        <input type="text" name="remarks" placeholder="e.g. Strong in Part III, weak in Schedules" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('mains-modal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Score</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Load Firebase & App -->
+<script type="module" src="app.js"></script>
+
+</body>
+</html>
