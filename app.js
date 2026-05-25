@@ -873,6 +873,42 @@ window.openEditTask = async function(taskId) {
 // FORM HANDLERS
 // ─────────────────────────────────────────────────────────────
 
+/** Switch plan type in the task modal */
+window.setPlanType = function(type) {
+  // Update button styles
+  document.querySelectorAll('.plan-type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.type === type);
+  });
+
+  const singleDate = document.getElementById('field-single-date');
+  const rangeDate = document.getElementById('field-date-range');
+  const hint = document.getElementById('range-hint');
+  const dateInput = document.querySelector('#task-form [name="date"]');
+  const startInput = document.querySelector('#task-form [name="startDate"]');
+  const endInput = document.querySelector('#task-form [name="endDate"]');
+
+  if (type === 'daily') {
+    singleDate.style.display = 'block';
+    rangeDate.style.display = 'none';
+    dateInput.required = true;
+    if (startInput) startInput.required = false;
+    if (endInput) endInput.required = false;
+  } else {
+    singleDate.style.display = 'none';
+    rangeDate.style.display = 'block';
+    dateInput.required = false;
+    if (startInput) startInput.required = true;
+    if (endInput) endInput.required = true;
+
+    // Set helpful hint text
+    if (hint) {
+      hint.textContent = type === 'weekly'
+        ? '📌 Tasks will be created for each day of the selected week range'
+        : '📌 Tasks will be created for each day of the selected month range';
+    }
+  }
+};
+
 function setupForms() {
   // LOGIN FORM
   document.getElementById('login-form')?.addEventListener('submit', async e => {
