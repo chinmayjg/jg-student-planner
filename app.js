@@ -1,5 +1,5 @@
 // ============================================================
-// app.js — JG Lucknow Study Planner (Main Application Logic)
+// app.js — Judiciary PrepFlow (Main Application Logic)
 // ============================================================
 
 import { auth, db } from './firebase-config.js';
@@ -1129,7 +1129,7 @@ async function exportProgressPDF() {
     const pdf = new jsPDF();
     pdf.setFontSize(20);
     pdf.setTextColor(99, 102, 241);
-    pdf.text('JG Lucknow Study Planner', 20, 20);
+    pdf.text('Judiciary PrepFlow', 20, 20);
     pdf.setFontSize(12);
     pdf.setTextColor(50, 50, 50);
     pdf.text(`Progress Report — ${currentUser?.displayName || ''}`, 20, 30);
@@ -1168,7 +1168,7 @@ async function exportProgressPDF() {
       y += 4;
     });
 
-    pdf.save('JG_Progress_Report.pdf');
+    pdf.save('Judiciary_Progress_Report.pdf');
     showToast('PDF downloaded!', 'success');
   } catch (e) {
     showToast('PDF export failed. Make sure jsPDF is loaded.', 'error');
