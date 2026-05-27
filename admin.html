@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Faculty Portal — JG Lucknow</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="admin.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<!-- ════════════════════════════════
+     AUTH SCREEN (reuses main style)
+════════════════════════════════ -->
+<div id="auth-container">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <span class="logo-icon">🏛️</span>
+      <h1>Faculty Portal</h1>
+      <p>JG Lucknow — Administration</p>
+    </div>
+    <div id="auth-login" class="auth-view active">
+      <h2>Faculty Sign In</h2>
+      <p class="auth-subtitle">Only authorised faculty accounts can access this portal</p>
+      <form id="login-form">
+        <div class="form-group">
+          <label>Faculty Email</label>
+          <input type="email" name="email" placeholder="faculty@jglucknow.com" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" placeholder="Enter password" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Sign In →</button>
+      </form>
+      <p class="auth-switch" style="margin-top:16px">
+        <a href="index.html">← Back to Student Portal</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     FACULTY APP
+════════════════════════════════ -->
+<div id="app-container" style="display:none; flex-direction:row;">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="logo-icon">🏛️</span>
+        <div class="sidebar-logo-text">
+          <h2>Faculty Portal</h2>
+          <span>JG Lucknow</span>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-section="overview">
+        <span class="nav-icon">📊</span> Overview
+      </div>
+      <div class="nav-item" data-section="students">
+        <span class="nav-icon">👥</span> All Students
+      </div>
+      <div class="nav-item" data-section="schedules">
+        <span class="nav-icon">📅</span> Schedules
+      </div>
+      <div class="nav-item" data-section="scores">
+        <span class="nav-icon">📝</span> Test Scores
+      </div>
+      <div class="nav-item" data-section="messages">
+        <span class="nav-icon">💬</span> Messages
+        <span class="nav-badge" id="unread-badge" style="display:none">0</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" style="background:linear-gradient(135deg,#d4a847,#f59e0b)">🎓</div>
+        <div class="user-details">
+          <div class="user-name" id="user-name-display">Faculty</div>
+          <div class="user-role" style="color:#d4a847">Faculty / Admin</div>
+        </div>
+      </div>
+      <div class="sidebar-actions">
+        <button id="logout-btn" class="btn btn-secondary btn-sm">Sign Out</button>
+        <button id="theme-toggle" class="btn btn-secondary btn-sm">☀️</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div id="main-content">
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <button id="sidebar-toggle">☰</button>
+        <span class="page-title">🏛️ Faculty Portal — JG Lucknow</span>
+      </div>
+      <div class="top-bar-right">
+        <span id="live-date" style="font-size:13px;color:var(--text-secondary)"></span>
+      </div>
+    </header>
+
+    <main class="content-area">
+
+      <!-- ══════════════════════════════
+           OVERVIEW SECTION
+      ══════════════════════════════ -->
+      <div id="section-overview" class="section active">
+        <div class="dashboard-header">
+          <h2 id="faculty-greeting">Good morning! 👋</h2>
+          <p>Here's a snapshot of your students' preparation status.</p>
+        </div>
+
+        <!-- Top Stats -->
+        <div class="stats-row" style="margin-bottom:24px">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-label">Total Students</div>
+            <div class="stat-value" id="stat-total-students">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-label">Active Today</div>
+            <div class="stat-value" id="stat-active-today">—</div>
+            <div class="stat-sub">Completed ≥1 task</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📝</div>
+            <div class="stat-label">Tests This Week</div>
+            <div class="stat-value" id="stat-tests-week">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-label">Avg Class Score</div>
+            <div class="stat-value" id="stat-class-avg">—</div>
+          </div>
+        </div>
+
+        <!-- Student Performance Table -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-title">🏆 Student Performance Snapshot</div>
+          <div id="overview-table">
+            <p class="empty-msg">Loading students...</p>
+          </div>
+        </div>
+
+        <!-- Class Avg Chart -->
+        <div class="card">
+          <div class="card-title">📈 Class Average — Prelims Scores</div>
+          <div style="position:relative;height:260px">
+            <canvas id="class-avg-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════
+           STUDENTS SECTION
+      ══════════════════════════════ -->
+      <div id="section-students" class="section">
+        <div class="section-header">
+          <h2>👥 All Students</h2>
+          <div class="section-actions">
+            <input type="text" id="student-search" placeholder="🔍 Search student..." class="search-input" />
+          </div>
+        </div>
+
+        <div id="students-grid" class="students-grid">
+          <p class="empty-msg">Loading students...</p>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════
+           STUDENT DETAIL (sub-view)
+      ══════════════════════════════ -->
+      <div id="section-student-detail" class="section">
+        <div class="section-header">
+          <button class="btn btn-secondary btn-sm" onclick="switchSection('students')">← Back</button>
+          <h2 id="detail-student-name">Student Detail</h2>
+        </div>
+
+        <!-- Student Info Card -->
+        <div class="card" style="margin-bottom:20px" id="detail-info-card">
+          <div id="detail-student-info"></div>
+        </div>
+
+        <!-- Detail Tabs -->
+        <div class="tabs" style="margin-bottom:20px">
+          <button class="tab-btn active" data-tab="detail-tab-schedule">📅 Schedule</button>
+          <button class="tab-btn" data-tab="detail-tab-scores">📝 Scores</button>
+          <button class="tab-btn" data-tab="detail-tab-feedback">💬 Send Feedback</button>
+        </div>
+
+        <div id="detail-tab-schedule" class="tab-panel active">
+          <div class="filter-row">
+            <button class="detail-filter-btn active" data-filter="today">Today</button>
+            <button class="detail-filter-btn" data-filter="week">This Week</button>
+            <button class="detail-filter-btn" data-filter="all">All Tasks</button>
+          </div>
+          <div id="detail-schedule-list"><p class="empty-msg">Loading...</p></div>
+        </div>
+
+        <div id="detail-tab-scores" class="tab-panel">
+          <div style="position:relative;height:240px;margin-bottom:20px">
+            <canvas id="student-score-chart"></canvas>
+          </div>
+          <div id="detail-scores-list"><p class="empty-msg">No scores recorded.</p></div>
+        </div>
+
+        <div id="detail-tab-feedback" class="tab-panel">
+          <div class="card">
+            <div class="card-title">💬 Send Feedback to Student</div>
+            <form id="feedback-form">
+              <div class="form-group">
+                <label>Message Type</label>
+                <select name="msgType">
+                  <option value="feedback">📋 General Feedback</option>
+                  <option value="warning">⚠️ Warning / Alert</option>
+                  <option value="praise">🌟 Praise / Encouragement</option>
+                  <option value="task">📌 Task Reminder</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Subject</label>
+                <input type="text" name="subject" placeholder="e.g. Your Constitutional Law performance" required />
+              </div>
+              <div class="form-group">
+                <label>Message</label>
+                <textarea name="message" placeholder="Write your feedback here..." rows="5" required></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary">Send Message →</button>
+            </form>
+
+            <!-- Previous messages to this student -->
+            <div style="margin-top:28px">
+              <h4 style="font-size:14px;color:var(--text-secondary);margin-bottom:12px">Previous Messages</h4>
+              <div id="sent-messages-list"><p class="empty-msg">No messages sent yet.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════
+           SCHEDULES SECTION
+      ══════════════════════════════ -->
+      <div id="section-schedules" class="section">
+        <div class="section-header">
+          <h2>📅 All Student Schedules</h2>
+          <div class="section-actions">
+            <select id="schedule-student-filter" class="search-input" style="width:200px">
+              <option value="all">All Students</option>
+            </select>
+            <select id="schedule-date-filter" class="search-input" style="width:140px">
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+        </div>
+        <div id="all-schedules-list"><p class="empty-msg">Loading...</p></div>
+      </div>
+
+      <!-- ══════════════════════════════
+           SCORES SECTION
+      ══════════════════════════════ -->
+      <div id="section-scores" class="section">
+        <div class="section-header">
+          <h2>📝 All Student Test Scores</h2>
+          <div class="section-actions">
+            <select id="scores-student-filter" class="search-input" style="width:200px">
+              <option value="all">All Students</option>
+            </select>
+            <select id="scores-type-filter" class="search-input" style="width:130px">
+              <option value="prelims">Prelims</option>
+              <option value="mains">Mains</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Class chart -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-title">📊 Subject-wise Class Performance (Mains)</div>
+          <div style="position:relative;height:260px">
+            <canvas id="class-subject-chart"></canvas>
+          </div>
+        </div>
+
+        <div id="all-scores-list"><p class="empty-msg">Loading...</p></div>
+      </div>
+
+      <!-- ══════════════════════════════
+           MESSAGES SECTION
+      ══════════════════════════════ -->
+      <div id="section-messages" class="section">
+        <div class="section-header">
+          <h2>💬 Messages</h2>
+        </div>
+
+        <div class="messages-layout">
+          <!-- Inbox -->
+          <div class="card messages-inbox">
+            <div class="card-title">📥 All Conversations</div>
+            <div id="conversations-list"><p class="empty-msg">No messages yet.</p></div>
+          </div>
+
+          <!-- Compose broadcast -->
+          <div class="card messages-compose">
+            <div class="card-title">📢 Broadcast Message</div>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+              Send a message to all students at once
+            </p>
+            <form id="broadcast-form">
+              <div class="form-group">
+                <label>Message Type</label>
+                <select name="msgType">
+                  <option value="announcement">📣 Announcement</option>
+                  <option value="reminder">⏰ Exam Reminder</option>
+                  <option value="motivation">💪 Motivation</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Subject</label>
+                <input type="text" name="subject" placeholder="e.g. Important: Exam Schedule Update" required />
+              </div>
+              <div class="form-group">
+                <label>Message</label>
+                <textarea name="message" rows="4" placeholder="Write your broadcast message..." required></textarea>
+              </div>
+              <button type="submit" class="btn btn-gold btn-full">📢 Send to All Students</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>
