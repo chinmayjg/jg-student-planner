@@ -1,17 +1,17 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "paste-your-apiKey-here",
-  authDomain: "paste-your-authDomain-here",
-  projectId: "paste-your-projectId-here",
-  storageBucket: "paste-your-storageBucket-here",
-  messagingSenderId: "paste-your-messagingSenderId-here",
-  appId: "paste-your-appId-here"
+  apiKey: "AIzaSyANEuLrhnIgsYGDzUwbaDUl7Ys86dxLYCU",
+  authDomain: "jg-lucknow-study-planner.firebaseapp.com",
+  projectId: "jg-lucknow-study-planner",
+  storageBucket: "jg-lucknow-study-planner.firebasestorage.app",
+  messagingSenderId: "933835045526",
+  appId: "1:933835045526:web:8d5d01f4621ad312faa0b7"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export default app;
