@@ -1,5 +1,5 @@
 // ============================================================
-// app.js — Judiciary PrepFlow (Main Application Logic)
+// app.js — JG Lucknow Study Planner (Fixed Version)
 // ============================================================
 
 import { auth, db } from './firebase-config.js';
@@ -14,7 +14,7 @@ import {
 import {
   collection, doc, setDoc, getDoc, getDocs,
   addDoc, updateDoc, deleteDoc, query,
-  where, orderBy, serverTimestamp, onSnapshot
+  where, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ─────────────────────────────────────────────────────────────
@@ -25,29 +25,21 @@ let scheduleChart = null;
 let progressChart = null;
 let monthlyChart = null;
 let activeSection = 'dashboard';
-let unsubscribers = []; // Firestore listeners to clean up on logout
 
-// Motivational quotes for judiciary aspirants
 const QUOTES = [
   { text: "Justice is the constant and perpetual will to allot to every man his due.", author: "Justinian I" },
   { text: "The law is reason, free from passion.", author: "Aristotle" },
   { text: "Success is the sum of small efforts repeated day in and day out.", author: "Robert Collier" },
-  { text: "A lawyer without history or literature is a mechanic, a mere working mason.", author: "Walter Scott" },
-  { text: "Study hard, for the well is deep and our brains are shallow.", author: "Richard Baxter" },
-  { text: "The beautiful thing about learning is that no one can take it away from you.", author: "B.B. King" },
-  { text: "Do not wait to strike till the iron is hot, but make it hot by striking.", author: "William Butler Yeats" },
   { text: "Discipline is the bridge between goals and accomplishment.", author: "Jim Rohn" },
-  { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
-  { text: "Lawyers are the only persons in whom ignorance of the law is not punished.", author: "Jeremy Bentham" }
+  { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" }
 ];
 
 // ─────────────────────────────────────────────────────────────
-// UTILITY FUNCTIONS
+// UTILITIES
 // ─────────────────────────────────────────────────────────────
-
-/** Show toast notification */
 function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');
+  if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
@@ -60,27 +52,24 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
-/** Format date to YYYY-MM-DD */
 function formatDate(date) {
   return new Date(date).toISOString().split('T')[0];
 }
 
-/** Get today's date string */
-function today() { return formatDate(new Date()); }
+function today() {
+  return formatDate(new Date());
+}
 
-/** Countdown days from today to a future date */
 function daysUntil(dateStr) {
   const diff = new Date(dateStr) - new Date(today());
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-/** Local storage helpers (backup) */
 const LS = {
   set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} },
   get: (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch(e) { return null; } }
 };
 
-/** Save random daily quote */
 function loadQuote() {
   const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
   const el = document.getElementById('daily-quote');
@@ -90,52 +79,29 @@ function loadQuote() {
   }
 }
 
-/** Calculate study streak from schedule completions */
-async function calculateStreak() {
-  if (!currentUser) return 0;
-  try {
-    const q = query(
-      collection(db, 'users', currentUser.uid, 'schedules'),
-      where('completed', '==', true),
-      orderBy('date', 'desc')
-    );
-    const snap = await getDocs(q);
-    const dates = [...new Set(snap.docs.map(d => d.data().date))].sort().reverse();
-    let streak = 0;
-    let checkDate = today();
-    for (const d of dates) {
-      if (d === checkDate) { streak++; checkDate = formatDate(new Date(new Date(checkDate) - 86400000)); }
-      else if (d < checkDate) break;
-    }
-    return streak;
-  } catch { return 0; }
-}
-
 // ─────────────────────────────────────────────────────────────
 // AUTH FUNCTIONS
 // ─────────────────────────────────────────────────────────────
-
-/** Register new user */
 async function registerUser(name, email, password) {
   let cred = null;
+
+  // Step 1 — Create Firebase Auth account
   try {
-    // Step 1 — Create auth account
     cred = await createUserWithEmailAndPassword(auth, email, password);
   } catch (err) {
     showToast(getAuthError(err.code), 'error');
-    return;
+    return false;
   }
 
+  // Step 2 — Set display name (non-critical)
   try {
-    // Step 2 — Set display name
     await updateProfile(cred.user, { displayName: name });
   } catch (err) {
-    // Non-critical — continue even if this fails
-    console.warn('Could not set display name:', err.message);
+    console.warn('Display name update failed:', err.message);
   }
 
+  // Step 3 — Create Firestore profile (non-critical)
   try {
-    // Step 3 — Create Firestore profile
     await setDoc(doc(db, 'users', cred.user.uid), {
       name: name,
       email: email,
@@ -143,43 +109,40 @@ async function registerUser(name, email, password) {
       theme: 'dark'
     });
   } catch (err) {
-    // Non-critical — profile can be created later on login
-    console.warn('Could not create Firestore profile:', err.message);
+    console.warn('Firestore profile creation failed:', err.message);
   }
 
-  showToast('Account created successfully! Welcome aboard 🎉', 'success');
+  showToast('Account created! Welcome aboard 🎉', 'success');
+  return true;
 }
-/** Login user */
+
 async function loginUser(email, password) {
   try {
     await signInWithEmailAndPassword(auth, email, password);
     showToast('Welcome back! Ready to study? 📚', 'success');
+    return true;
   } catch (err) {
     showToast(getAuthError(err.code), 'error');
-    throw err;
+    return false;
   }
 }
 
-/** Logout user */
 async function logoutUser() {
-  unsubscribers.forEach(fn => fn()); // clean up Firestore listeners
-  unsubscribers = [];
   await signOut(auth);
   showToast('Logged out. Keep studying! 💪', 'info');
 }
 
-/** Send password reset email */
 async function resetPassword(email) {
   try {
     await sendPasswordResetEmail(auth, email);
-    showToast('Password reset email sent! Check your inbox.', 'success');
+    showToast('Password reset email sent!', 'success');
+    return true;
   } catch (err) {
     showToast(getAuthError(err.code), 'error');
-    throw err;
+    return false;
   }
 }
 
-/** Convert Firebase auth error codes to user-friendly messages */
 function getAuthError(code) {
   const errors = {
     'auth/email-already-in-use': 'This email is already registered.',
@@ -187,41 +150,27 @@ function getAuthError(code) {
     'auth/weak-password': 'Password must be at least 6 characters.',
     'auth/user-not-found': 'No account found with this email.',
     'auth/wrong-password': 'Incorrect password. Please try again.',
+    'auth/invalid-credential': 'Incorrect email or password.',
     'auth/too-many-requests': 'Too many attempts. Please try again later.',
     'auth/network-request-failed': 'Network error. Check your connection.'
   };
-  return errors[code] || 'Something went wrong. Please try again.';
+  return errors[code] || `Error: ${code}`;
 }
 
 // ─────────────────────────────────────────────────────────────
 // DASHBOARD
 // ─────────────────────────────────────────────────────────────
-
 async function loadDashboard() {
   if (!currentUser) return;
-
   loadQuote();
 
-  // Update user greeting
   const name = currentUser.displayName || 'Aspirant';
   const el = document.getElementById('user-greeting');
   if (el) el.textContent = `Welcome back, ${name.split(' ')[0]}! 👋`;
 
-  // Load today's tasks
   await loadTodaysTasks();
-
-  // Load upcoming exams
   await loadUpcomingExamsPreview();
-
-  // Load streak
-  const streak = await calculateStreak();
-  const streakEl = document.getElementById('streak-count');
-  if (streakEl) streakEl.textContent = streak;
-
-  // Load today's progress
   await loadTodayProgress();
-
-  // Load latest mock scores
   await loadLatestScores();
 }
 
@@ -251,6 +200,7 @@ async function loadTodaysTasks() {
       </div>`).join('');
   } catch (e) {
     container.innerHTML = '<p class="empty-msg">Could not load tasks.</p>';
+    console.error('loadTodaysTasks error:', e);
   }
 }
 
@@ -264,7 +214,7 @@ async function loadUpcomingExamsPreview() {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 3);
     if (exams.length === 0) {
-      container.innerHTML = '<p class="empty-msg">No upcoming exams. <a href="#" onclick="switchSection(\'exams\')">Add one!</a></p>';
+      container.innerHTML = '<p class="empty-msg">No upcoming exams.</p>';
       return;
     }
     container.innerHTML = exams.map(e => {
@@ -277,7 +227,9 @@ async function loadUpcomingExamsPreview() {
         <div class="exam-countdown ${d <= 7 ? 'urgent' : ''}">${d === 0 ? 'TODAY!' : d === 1 ? 'Tomorrow' : `${d} days`}</div>
       </div>`;
     }).join('');
-  } catch { container.innerHTML = '<p class="empty-msg">Could not load exams.</p>'; }
+  } catch (e) {
+    container.innerHTML = '<p class="empty-msg">Could not load exams.</p>';
+  }
 }
 
 async function loadTodayProgress() {
@@ -291,13 +243,19 @@ async function loadTodayProgress() {
     const total = tasks.length;
     const done = tasks.filter(t => t.completed).length;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
     const el = document.getElementById('today-progress-pct');
     const bar = document.getElementById('today-progress-bar');
     const label = document.getElementById('today-progress-label');
+    const labelBar = document.getElementById('today-progress-label-bar');
+
     if (el) el.textContent = `${pct}%`;
     if (bar) bar.style.width = `${pct}%`;
     if (label) label.textContent = `${done}/${total} tasks completed`;
-  } catch {}
+    if (labelBar) labelBar.textContent = `${done}/${total} tasks completed today`;
+  } catch (e) {
+    console.error('loadTodayProgress error:', e);
+  }
 }
 
 async function loadLatestScores() {
@@ -325,38 +283,28 @@ async function loadLatestScores() {
         </div>
       </div>`;
     }).join('');
-  } catch { container.innerHTML = '<p class="empty-msg">Could not load scores.</p>'; }
+  } catch (e) {
+    container.innerHTML = '<p class="empty-msg">Could not load scores.</p>';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
-// SCHEDULE PLANNER
+// SCHEDULE
 // ─────────────────────────────────────────────────────────────
-
 async function loadSchedule(filter = 'today') {
   const container = document.getElementById('schedule-list');
   if (!container) return;
-
-  let q;
   const now = new Date();
+  let q;
 
   if (filter === 'today') {
     q = query(collection(db, 'users', currentUser.uid, 'schedules'), where('date', '==', today()));
   } else if (filter === 'week') {
-    const start = today();
     const end = formatDate(new Date(now.getTime() + 7 * 86400000));
-    q = query(
-      collection(db, 'users', currentUser.uid, 'schedules'),
-      where('date', '>=', start),
-      where('date', '<=', end)
-    );
+    q = query(collection(db, 'users', currentUser.uid, 'schedules'), where('date', '>=', today()), where('date', '<=', end));
   } else if (filter === 'month') {
-    const start = today();
     const end = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()));
-    q = query(
-      collection(db, 'users', currentUser.uid, 'schedules'),
-      where('date', '>=', start),
-      where('date', '<=', end)
-    );
+    q = query(collection(db, 'users', currentUser.uid, 'schedules'), where('date', '>=', today()), where('date', '<=', end));
   } else {
     q = query(collection(db, 'users', currentUser.uid, 'schedules'), orderBy('date', 'desc'));
   }
@@ -364,14 +312,13 @@ async function loadSchedule(filter = 'today') {
   try {
     const snap = await getDocs(q);
     const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => a.date?.localeCompare(b.date) || (a.startTime || '').localeCompare(b.startTime || ''));
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.startTime || '').localeCompare(b.startTime || ''));
 
     if (tasks.length === 0) {
       container.innerHTML = '<p class="empty-msg">No tasks found. Add a new task above!</p>';
       return;
     }
 
-    // Group by date
     const grouped = {};
     tasks.forEach(t => { (grouped[t.date] = grouped[t.date] || []).push(t); });
 
@@ -398,18 +345,17 @@ async function loadSchedule(filter = 'today') {
           </div>`).join('')}
       </div>`).join('');
   } catch (e) {
-    container.innerHTML = `<p class="empty-msg">Error loading schedule: ${e.message}</p>`;
+    container.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
+    console.error('loadSchedule error:', e);
   }
 }
 
-/** Format date for display */
 function formatDisplayDate(dateStr) {
   if (dateStr === today()) return '📅 Today';
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-/** Get all dates between two date strings */
 function getDateRange(startStr, endStr) {
   const dates = [];
   let current = new Date(startStr + 'T00:00:00');
@@ -421,72 +367,45 @@ function getDateRange(startStr, endStr) {
   return dates;
 }
 
-/** Add or update a schedule task (supports daily, weekly, monthly ranges) */
 async function saveTask(taskData, taskId = null) {
   try {
     const colRef = collection(db, 'users', currentUser.uid, 'schedules');
-
     if (taskId) {
-      // Editing existing task — always single update
-      await updateDoc(doc(db, 'users', currentUser.uid, 'schedules', taskId), {
-        ...taskData, updatedAt: serverTimestamp()
-      });
+      await updateDoc(doc(db, 'users', currentUser.uid, 'schedules', taskId), { ...taskData, updatedAt: serverTimestamp() });
       showToast('Task updated!', 'success');
-
     } else if (taskData.planType === 'weekly' || taskData.planType === 'monthly') {
-      // Create one task per day in the date range
       const dates = getDateRange(taskData.startDate, taskData.endDate);
       if (dates.length === 0) { showToast('Invalid date range.', 'error'); return; }
-      if (dates.length > 60) { showToast('Range too large. Max 60 days allowed.', 'warning'); return; }
-
-      // Save all tasks in parallel
-      await Promise.all(dates.map(date =>
-        addDoc(colRef, {
-          subject: taskData.subject,
-          topic: taskData.topic,
-          date,
-          startTime: taskData.startTime,
-          endTime: taskData.endTime,
-          priority: taskData.priority,
-          category: taskData.category,
-          planType: taskData.planType,
-          completed: false,
-          createdAt: serverTimestamp(),
-          userId: currentUser.uid
-        })
-      ));
-      showToast(`✅ ${dates.length} tasks created (${taskData.planType} plan)!`, 'success');
-
+      if (dates.length > 60) { showToast('Range too large. Max 60 days.', 'warning'); return; }
+      await Promise.all(dates.map(date => addDoc(colRef, {
+        subject: taskData.subject, topic: taskData.topic, date,
+        startTime: taskData.startTime, endTime: taskData.endTime,
+        priority: taskData.priority, category: taskData.category,
+        planType: taskData.planType, completed: false,
+        createdAt: serverTimestamp(), userId: currentUser.uid
+      })));
+      showToast(`✅ ${dates.length} tasks created!`, 'success');
     } else {
-      // Daily — single task
-      await addDoc(colRef, {
-        ...taskData, completed: false,
-        createdAt: serverTimestamp(),
-        userId: currentUser.uid
-      });
+      await addDoc(colRef, { ...taskData, completed: false, createdAt: serverTimestamp(), userId: currentUser.uid });
       showToast('Task added!', 'success');
     }
-
     closeModal('task-modal');
     loadSchedule(document.querySelector('.filter-btn.active')?.dataset.filter || 'today');
     if (activeSection === 'dashboard') loadTodaysTasks();
-
   } catch (e) {
     showToast('Failed to save task: ' + e.message, 'error');
+    console.error('saveTask error:', e);
   }
 }
-/** Toggle task completion */
+
 async function toggleTask(taskId, completed) {
   try {
     await updateDoc(doc(db, 'users', currentUser.uid, 'schedules', taskId), { completed });
     if (activeSection === 'dashboard') { loadTodaysTasks(); loadTodayProgress(); }
     if (activeSection === 'schedule') loadTodayProgress();
-  } catch (e) {
-    showToast('Could not update task.', 'error');
-  }
+  } catch (e) { showToast('Could not update task.', 'error'); }
 }
 
-/** Delete task */
 async function deleteTask(taskId) {
   if (!confirm('Delete this task?')) return;
   try {
@@ -497,9 +416,8 @@ async function deleteTask(taskId) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// EXAMS MODULE
+// EXAMS
 // ─────────────────────────────────────────────────────────────
-
 async function loadExams() {
   const container = document.getElementById('exams-list');
   if (!container) return;
@@ -508,7 +426,7 @@ async function loadExams() {
     const exams = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
     if (exams.length === 0) {
-      container.innerHTML = '<p class="empty-msg">No exams added yet. Click "Add Exam" to get started!</p>';
+      container.innerHTML = '<p class="empty-msg">No exams added yet.</p>';
       return;
     }
     container.innerHTML = exams.map(e => {
@@ -520,9 +438,7 @@ async function loadExams() {
             <h3 class="exam-name">${e.name}</h3>
             <span class="badge badge-${e.stage?.toLowerCase()}">${e.stage || 'Prelims'}</span>
           </div>
-          <div class="exam-actions">
-            <button class="btn-icon" onclick="deleteExam('${e.id}')">🗑️</button>
-          </div>
+          <button class="btn-icon" onclick="deleteExam('${e.id}')">🗑️</button>
         </div>
         <div class="exam-card-body">
           <div class="exam-date">📅 ${new Date(e.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
@@ -533,7 +449,9 @@ async function loadExams() {
         </div>
       </div>`;
     }).join('');
-  } catch { container.innerHTML = '<p class="empty-msg">Could not load exams.</p>'; }
+  } catch (e) {
+    container.innerHTML = '<p class="empty-msg">Could not load exams.</p>';
+  }
 }
 
 async function saveExam(examData) {
@@ -554,9 +472,8 @@ async function deleteExam(id) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// MOCK TEST TRACKER
+// TESTS
 // ─────────────────────────────────────────────────────────────
-
 async function loadTests() {
   await loadPrelimsTests();
   await loadMainsTests();
@@ -566,11 +483,9 @@ async function loadPrelimsTests() {
   const container = document.getElementById('prelims-list');
   if (!container) return;
   try {
-    const snap = await getDocs(query(
-      collection(db, 'users', currentUser.uid, 'prelims_tests'),
-      orderBy('date', 'desc')
-    ));
-    const tests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const snap = await getDocs(collection(db, 'users', currentUser.uid, 'prelims_tests'));
+    const tests = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
     if (tests.length === 0) { container.innerHTML = '<p class="empty-msg">No prelims tests recorded yet.</p>'; return; }
     container.innerHTML = `
       <table class="data-table">
@@ -578,8 +493,7 @@ async function loadPrelimsTests() {
         <tbody>${tests.map(t => {
           const pct = t.total > 0 ? Math.round((t.obtained / t.total) * 100) : 0;
           return `<tr>
-            <td>${t.name || '—'}</td>
-            <td>${t.date || '—'}</td>
+            <td>${t.name || '—'}</td><td>${t.date || '—'}</td>
             <td>${t.obtained}/${t.total}</td>
             <td><div class="mini-bar"><div class="mini-fill ${pct >= 60 ? 'good' : pct >= 40 ? 'avg' : 'poor'}" style="width:${pct}%"></div></div></td>
             <td>${t.accuracy || pct}%</td>
@@ -587,18 +501,16 @@ async function loadPrelimsTests() {
           </tr>`;
         }).join('')}</tbody>
       </table>`;
-  } catch { container.innerHTML = '<p class="empty-msg">Could not load tests.</p>'; }
+  } catch (e) { container.innerHTML = '<p class="empty-msg">Could not load tests.</p>'; }
 }
 
 async function loadMainsTests() {
   const container = document.getElementById('mains-list');
   if (!container) return;
   try {
-    const snap = await getDocs(query(
-      collection(db, 'users', currentUser.uid, 'mains_tests'),
-      orderBy('date', 'desc')
-    ));
-    const tests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const snap = await getDocs(collection(db, 'users', currentUser.uid, 'mains_tests'));
+    const tests = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
     if (tests.length === 0) { container.innerHTML = '<p class="empty-msg">No mains tests recorded yet.</p>'; return; }
     container.innerHTML = `
       <table class="data-table">
@@ -606,8 +518,7 @@ async function loadMainsTests() {
         <tbody>${tests.map(t => {
           const pct = t.total > 0 ? Math.round((t.obtained / t.total) * 100) : 0;
           return `<tr>
-            <td>${t.subject || '—'}</td>
-            <td>${t.date || '—'}</td>
+            <td>${t.subject || '—'}</td><td>${t.date || '—'}</td>
             <td>${t.obtained}/${t.total}</td>
             <td><div class="mini-bar"><div class="mini-fill ${pct >= 60 ? 'good' : pct >= 40 ? 'avg' : 'poor'}" style="width:${pct}%"></div></div></td>
             <td>${t.remarks || '—'}</td>
@@ -615,7 +526,7 @@ async function loadMainsTests() {
           </tr>`;
         }).join('')}</tbody>
       </table>`;
-  } catch { container.innerHTML = '<p class="empty-msg">Could not load tests.</p>'; }
+  } catch (e) { container.innerHTML = '<p class="empty-msg">Could not load tests.</p>'; }
 }
 
 async function savePrelimsTest(data) {
@@ -626,7 +537,7 @@ async function savePrelimsTest(data) {
     closeModal('prelims-modal');
     loadPrelimsTests();
     loadLatestScores();
-  } catch { showToast('Failed to save score.', 'error'); }
+  } catch (e) { showToast('Failed to save score.', 'error'); }
 }
 
 async function saveMainsTest(data) {
@@ -635,7 +546,7 @@ async function saveMainsTest(data) {
     showToast('Mains score saved!', 'success');
     closeModal('mains-modal');
     loadMainsTests();
-  } catch { showToast('Failed to save score.', 'error'); }
+  } catch (e) { showToast('Failed to save score.', 'error'); }
 }
 
 async function deleteTest(coll, id) {
@@ -646,179 +557,111 @@ async function deleteTest(coll, id) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PROGRESS REPORT & CHARTS
+// PROGRESS
 // ─────────────────────────────────────────────────────────────
-
 async function loadProgress() {
   try {
-    // Fetch prelims tests
     const pSnap = await getDocs(collection(db, 'users', currentUser.uid, 'prelims_tests'));
     const pTests = pSnap.docs.map(d => d.data());
-
-    // Fetch mains tests
     const mSnap = await getDocs(collection(db, 'users', currentUser.uid, 'mains_tests'));
     const mTests = mSnap.docs.map(d => d.data());
-
-    // Fetch schedule completion
     const sSnap = await getDocs(collection(db, 'users', currentUser.uid, 'schedules'));
     const tasks = sSnap.docs.map(d => d.data());
 
-    // Stats
     const totalTests = pTests.length + mTests.length;
     const avgScore = pTests.length > 0
-      ? Math.round(pTests.reduce((s, t) => s + (t.total > 0 ? (t.obtained / t.total) * 100 : 0), 0) / pTests.length)
-      : 0;
+      ? Math.round(pTests.reduce((s, t) => s + (t.total > 0 ? (t.obtained / t.total) * 100 : 0), 0) / pTests.length) : 0;
     const completionPct = tasks.length > 0
       ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0;
 
-    document.getElementById('stat-total-tests').textContent = totalTests;
-    document.getElementById('stat-avg-score').textContent = `${avgScore}%`;
-    document.getElementById('stat-completion').textContent = `${completionPct}%`;
-    document.getElementById('stat-prelims-count').textContent = pTests.length;
+    const el = id => document.getElementById(id);
+    if (el('stat-total-tests')) el('stat-total-tests').textContent = totalTests;
+    if (el('stat-avg-score')) el('stat-avg-score').textContent = `${avgScore}%`;
+    if (el('stat-completion')) el('stat-completion').textContent = `${completionPct}%`;
+    if (el('stat-prelims-count')) el('stat-prelims-count').textContent = pTests.length;
+    if (el('completion-bar')) el('completion-bar').style.width = `${completionPct}%`;
+    if (el('completion-label')) el('completion-label').textContent = `${completionPct}% schedule completed`;
 
-    // Subject-wise performance chart (mains)
     buildSubjectChart(mTests);
-
-    // Monthly progress chart
     buildMonthlyChart(pTests);
-
-    // Completion bar
-    const bar = document.getElementById('completion-bar');
-    if (bar) bar.style.width = `${completionPct}%`;
-    const lbl = document.getElementById('completion-label');
-    if (lbl) lbl.textContent = `${completionPct}% schedule completed`;
-
-    // Generate SWOT
     generateSWOT(pTests, mTests, completionPct);
-
-  } catch (e) { showToast('Could not load progress.', 'error'); }
+  } catch (e) {
+    showToast('Could not load progress.', 'error');
+    console.error('loadProgress error:', e);
+  }
 }
 
 function buildSubjectChart(mTests) {
   const ctx = document.getElementById('subject-chart')?.getContext('2d');
   if (!ctx) return;
-
-  // Group by subject
   const subjects = {};
   mTests.forEach(t => {
     if (!subjects[t.subject]) subjects[t.subject] = { total: 0, obtained: 0 };
     subjects[t.subject].total += Number(t.total) || 0;
     subjects[t.subject].obtained += Number(t.obtained) || 0;
   });
-
   const labels = Object.keys(subjects);
   const data = labels.map(s => subjects[s].total > 0 ? Math.round((subjects[s].obtained / subjects[s].total) * 100) : 0);
   const colors = data.map(v => v >= 60 ? '#22c55e' : v >= 40 ? '#f59e0b' : '#ef4444');
-
   if (scheduleChart) scheduleChart.destroy();
   scheduleChart = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: labels.length > 0 ? labels : ['No data yet'],
-      datasets: [{ label: 'Score %', data: data.length > 0 ? data : [0], backgroundColor: colors.length > 0 ? colors : ['#6b7280'], borderRadius: 6 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw}%` } } },
-      scales: {
-        y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: '#1e293b' } },
-        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
-      }
-    }
+    data: { labels: labels.length > 0 ? labels : ['No data'], datasets: [{ label: 'Score %', data: data.length > 0 ? data : [0], backgroundColor: colors.length > 0 ? colors : ['#6b7280'], borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: '#1e293b' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } }
   });
 }
 
 function buildMonthlyChart(pTests) {
   const ctx = document.getElementById('monthly-chart')?.getContext('2d');
   if (!ctx) return;
-
-  // Group by month
   const monthly = {};
   pTests.forEach(t => {
     if (!t.date) return;
-    const month = t.date.substring(0, 7); // YYYY-MM
-    if (!monthly[month]) monthly[month] = { total: 0, obtained: 0, count: 0 };
+    const month = t.date.substring(0, 7);
+    if (!monthly[month]) monthly[month] = { total: 0, obtained: 0 };
     monthly[month].total += Number(t.total) || 0;
     monthly[month].obtained += Number(t.obtained) || 0;
-    monthly[month].count++;
   });
-
   const sortedMonths = Object.keys(monthly).sort();
-  const labels = sortedMonths.map(m => {
-    const [y, mo] = m.split('-');
-    return new Date(y, mo - 1).toLocaleString('en-IN', { month: 'short', year: '2-digit' });
-  });
+  const labels = sortedMonths.map(m => { const [y, mo] = m.split('-'); return new Date(y, mo - 1).toLocaleString('en-IN', { month: 'short', year: '2-digit' }); });
   const data = sortedMonths.map(m => monthly[m].total > 0 ? Math.round((monthly[m].obtained / monthly[m].total) * 100) : 0);
-
   if (monthlyChart) monthlyChart.destroy();
   monthlyChart = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: labels.length > 0 ? labels : ['No data'],
-      datasets: [{
-        label: 'Avg Score %', data: data.length > 0 ? data : [0],
-        borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.15)',
-        fill: true, tension: 0.4, pointBackgroundColor: '#6366f1', pointRadius: 5
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#94a3b8' } } },
-      scales: {
-        y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: '#1e293b' } },
-        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
-      }
-    }
+    data: { labels: labels.length > 0 ? labels : ['No data'], datasets: [{ label: 'Avg Score %', data: data.length > 0 ? data : [0], borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.15)', fill: true, tension: 0.4, pointBackgroundColor: '#6366f1', pointRadius: 5 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { y: { beginAtZero: true, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: '#1e293b' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } }
   });
 }
 
-// ─────────────────────────────────────────────────────────────
-// SWOT ANALYSIS
-// ─────────────────────────────────────────────────────────────
-
 function generateSWOT(pTests, mTests, completionPct) {
   const strengths = [], weaknesses = [], opportunities = [], threats = [];
-
-  // Analyse mains subjects
   const subjects = {};
   mTests.forEach(t => {
     if (!subjects[t.subject]) subjects[t.subject] = { total: 0, obtained: 0 };
     subjects[t.subject].total += Number(t.total) || 0;
     subjects[t.subject].obtained += Number(t.obtained) || 0;
   });
-
   Object.entries(subjects).forEach(([sub, data]) => {
     const pct = data.total > 0 ? Math.round((data.obtained / data.total) * 100) : 0;
-    if (pct >= 65) strengths.push(`Strong performance in <strong>${sub}</strong> (${pct}%)`);
-    else if (pct < 45) weaknesses.push(`Needs improvement in <strong>${sub}</strong> (${pct}%)`);
+    if (pct >= 65) strengths.push(`Strong in <strong>${sub}</strong> (${pct}%)`);
+    else if (pct < 45) weaknesses.push(`Needs work in <strong>${sub}</strong> (${pct}%)`);
   });
-
-  // Prelims analysis
-  const avgPrelims = pTests.length > 0
-    ? Math.round(pTests.reduce((s, t) => s + (t.total > 0 ? (t.obtained / t.total) * 100 : 0), 0) / pTests.length) : 0;
-  if (avgPrelims >= 60) strengths.push(`Good overall prelims average: <strong>${avgPrelims}%</strong>`);
-  else if (avgPrelims > 0) weaknesses.push(`Prelims average needs improvement: <strong>${avgPrelims}%</strong>`);
-
-  // Schedule completion
-  if (completionPct >= 70) strengths.push(`Excellent schedule adherence: <strong>${completionPct}%</strong>`);
-  else if (completionPct < 40) weaknesses.push(`Low schedule completion: <strong>${completionPct}%</strong> — improve consistency`);
-
-  // Generic opportunities and threats
-  if (pTests.length > 0) opportunities.push('Mock test data available — use it to identify patterns');
+  const avgPrelims = pTests.length > 0 ? Math.round(pTests.reduce((s, t) => s + (t.total > 0 ? (t.obtained / t.total) * 100 : 0), 0) / pTests.length) : 0;
+  if (avgPrelims >= 60) strengths.push(`Good prelims average: <strong>${avgPrelims}%</strong>`);
+  else if (avgPrelims > 0) weaknesses.push(`Prelims average needs work: <strong>${avgPrelims}%</strong>`);
+  if (completionPct >= 70) strengths.push(`Great schedule adherence: <strong>${completionPct}%</strong>`);
+  else if (completionPct < 40) weaknesses.push(`Low schedule completion: <strong>${completionPct}%</strong>`);
   opportunities.push('Consistent daily practice leads to exponential improvement');
-  opportunities.push('Focus on high-weightage constitutional law topics for quick gains');
-  if (completionPct < 50) threats.push('Inconsistent study schedule may hamper last-minute preparation');
-  if (avgPrelims < 50 && pTests.length > 0) threats.push('Prelims cut-off is competitive — increase test frequency');
-  threats.push('Exam stress and burnout — maintain work-life balance');
-
-  if (strengths.length === 0) strengths.push('Keep adding test scores to track your strengths!');
-  if (weaknesses.length === 0) weaknesses.push('No weak areas detected yet — keep recording scores.');
-
+  opportunities.push('Focus on high-weightage constitutional law topics');
+  if (completionPct < 50) threats.push('Inconsistent schedule may hamper preparation');
+  if (avgPrelims < 50 && pTests.length > 0) threats.push('Prelims cutoff is competitive — increase test frequency');
+  threats.push('Avoid burnout — maintain work-life balance');
+  if (strengths.length === 0) strengths.push('Keep adding test scores to track strengths!');
+  if (weaknesses.length === 0) weaknesses.push('No weak areas detected yet.');
   const render = (id, items, icon) => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = items.map(i => `<li>${icon} ${i}</li>`).join('');
   };
-
   render('swot-strengths', strengths, '💪');
   render('swot-weaknesses', weaknesses, '⚠️');
   render('swot-opportunities', opportunities, '🚀');
@@ -826,37 +669,62 @@ function generateSWOT(pTests, mTests, completionPct) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// UI NAVIGATION & MODALS
+// INBOX
 // ─────────────────────────────────────────────────────────────
+async function loadInbox() {
+  const container = document.getElementById('inbox-list');
+  if (!container || !currentUser) return;
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'users', currentUser.uid, 'messages'), orderBy('createdAt', 'desc'))
+    );
+    if (snap.empty) { container.innerHTML = '<p class="empty-msg">No messages from faculty yet.</p>'; return; }
+    const typeIcons = { feedback: '📋', warning: '⚠️', praise: '🌟', task: '📌', announcement: '📣', reminder: '⏰', motivation: '💪' };
+    container.innerHTML = snap.docs.map(d => {
+      const m = d.data();
+      const time = m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString('en-IN') : '—';
+      return `<div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:22px">${typeIcons[m.msgType] || '💬'}</span>
+            <div>
+              <div style="font-weight:700;font-size:15px">${m.subject || 'Message'}</div>
+              <div style="font-size:12px;color:var(--text-muted)">From: ${m.fromName || 'Faculty'} • ${time}</div>
+            </div>
+          </div>
+          ${m.isBroadcast ? '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--accent-light);color:var(--accent)">Broadcast</span>' : ''}
+        </div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.7">${m.message || ''}</p>
+      </div>`;
+    }).join('');
+    const badge = document.getElementById('inbox-badge');
+    if (badge) { badge.textContent = snap.size; badge.style.display = snap.size > 0 ? 'inline' : 'none'; }
+  } catch (e) {
+    container.innerHTML = `<p class="empty-msg">Could not load messages: ${e.message}</p>`;
+  }
+}
 
+// ─────────────────────────────────────────────────────────────
+// UI / NAVIGATION
+// ─────────────────────────────────────────────────────────────
 window.switchSection = function(sectionId) {
   activeSection = sectionId;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const section = document.getElementById(`section-${sectionId}`);
-  const navItem = document.querySelector(`[data-section="${sectionId}"]`);
-  if (section) section.classList.add('active');
-  if (navItem) navItem.classList.add('active');
-
-  // Close sidebar on mobile
+  document.getElementById(`section-${sectionId}`)?.classList.add('active');
+  document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
   document.getElementById('sidebar')?.classList.remove('open');
-
-  // Load data for the section
   switch (sectionId) {
-      case 'dashboard': loadDashboard(); break;
-      case 'schedule': loadSchedule('today'); break;
-      case 'exams': loadExams(); break;
-      case 'tests': loadTests(); break;
-      case 'progress': loadProgress(); break;
-      case 'inbox': loadInbox(); break;
-    }
+    case 'dashboard': loadDashboard(); break;
+    case 'schedule': loadSchedule('today'); break;
+    case 'exams': loadExams(); break;
+    case 'tests': loadTests(); break;
+    case 'progress': loadProgress(); break;
+    case 'inbox': loadInbox(); break;
   }
 };
 
-window.openModal = function(id) {
-  document.getElementById(id)?.classList.add('active');
-};
-
+window.openModal = function(id) { document.getElementById(id)?.classList.add('active'); };
 window.closeModal = function(id) {
   document.getElementById(id)?.classList.remove('active');
   const form = document.querySelector(`#${id} form`);
@@ -884,266 +752,34 @@ window.openEditTask = async function(taskId) {
     form.dataset.editId = taskId;
     document.getElementById('task-modal-title').textContent = 'Edit Task';
     openModal('task-modal');
-  } catch { showToast('Could not load task data.', 'error'); }
+  } catch { showToast('Could not load task.', 'error'); }
 };
 
-// ─────────────────────────────────────────────────────────────
-// FORM HANDLERS
-// ─────────────────────────────────────────────────────────────
-
-/** Switch plan type in the task modal */
 window.setPlanType = function(type) {
-  // Update button styles
-  document.querySelectorAll('.plan-type-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.type === type);
-  });
-
+  document.querySelectorAll('.plan-type-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.type === type));
   const singleDate = document.getElementById('field-single-date');
   const rangeDate = document.getElementById('field-date-range');
   const hint = document.getElementById('range-hint');
   const dateInput = document.querySelector('#task-form [name="date"]');
   const startInput = document.querySelector('#task-form [name="startDate"]');
   const endInput = document.querySelector('#task-form [name="endDate"]');
-
   if (type === 'daily') {
-    singleDate.style.display = 'block';
-    rangeDate.style.display = 'none';
+    singleDate.style.display = 'block'; rangeDate.style.display = 'none';
     dateInput.required = true;
     if (startInput) startInput.required = false;
     if (endInput) endInput.required = false;
   } else {
-    singleDate.style.display = 'none';
-    rangeDate.style.display = 'block';
+    singleDate.style.display = 'none'; rangeDate.style.display = 'block';
     dateInput.required = false;
     if (startInput) startInput.required = true;
     if (endInput) endInput.required = true;
-
-    // Set helpful hint text
-    if (hint) {
-      hint.textContent = type === 'weekly'
-        ? '📌 Tasks will be created for each day of the selected week range'
-        : '📌 Tasks will be created for each day of the selected month range';
-    }
+    if (hint) hint.textContent = type === 'weekly' ? '📌 Tasks created for each day of the week range' : '📌 Tasks created for each day of the month range';
   }
 };
-
-function setupForms() {
-  // LOGIN FORM
-  document.getElementById('login-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    const email = f.email.value.trim();
-    const password = f.password.value;
-
-    if (!email || !password) {
-      showToast('Please enter both email and password.', 'error');
-      return;
-    }
-
-    // Disable button to prevent double clicks
-    const btn = f.querySelector('button[type="submit"]');
-    const originalText = btn.textContent;
-    btn.textContent = 'Signing in...';
-    btn.disabled = true;
-
-    try {
-      await loginUser(email, password);
-    } finally {
-      btn.textContent = originalText;
-      btn.disabled = false;
-    }
-  });
-
-  // REGISTER FORM
-  document.getElementById('register-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    const name = f.name.value.trim();
-    const email = f.email.value.trim();
-    const password = f.password.value;
-    const confirm = f.confirmPassword.value;
-
-    // Validation checks
-    if (!name) {
-      showToast('Please enter your full name.', 'error');
-      return;
-    }
-    if (!email) {
-      showToast('Please enter your email address.', 'error');
-      return;
-    }
-    if (password.length < 6) {
-      showToast('Password must be at least 6 characters.', 'error');
-      return;
-    }
-    if (password !== confirm) {
-      showToast('Passwords do not match.', 'error');
-      return;
-    }
-
-    // Disable button to prevent double clicks
-    const btn = f.querySelector('button[type="submit"]');
-    const originalText = btn.textContent;
-    btn.textContent = 'Creating account...';
-    btn.disabled = true;
-
-    try {
-      await registerUser(name, email, password);
-    } finally {
-      btn.textContent = originalText;
-      btn.disabled = false;
-    }
-  });
-
-  // FORGOT PASSWORD FORM
-  document.getElementById('forgot-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    await resetPassword(e.target.email.value.trim());
-    showAuthView('login');
-  });
-
-  // LOGOUT BUTTON
-  document.getElementById('logout-btn')?.addEventListener('click', logoutUser);
-
-  // TASK FORM
-  document.getElementById('task-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    const editId = f.dataset.editId || null;
-    const planType = document.querySelector('.plan-type-btn.active')?.dataset.type || 'daily';
-
-    // Validate dates based on plan type
-    if (!editId && (planType === 'weekly' || planType === 'monthly')) {
-      if (!f.startDate.value || !f.endDate.value) {
-        showToast('Please select both start and end dates.', 'error'); return;
-      }
-      if (new Date(f.startDate.value) > new Date(f.endDate.value)) {
-        showToast('Start date must be before end date.', 'error'); return;
-      }
-    } else {
-      if (!f.date.value) {
-        showToast('Please select a date.', 'error'); return;
-      }
-    }
-
-    const data = {
-      subject: f.subject.value.trim(),
-      topic: f.topic.value.trim(),
-      date: f.date.value || f.startDate?.value || '',
-      startDate: f.startDate?.value || '',
-      endDate: f.endDate?.value || '',
-      startTime: f.startTime.value,
-      endTime: f.endTime.value,
-      priority: f.priority.value,
-      category: f.category.value,
-      planType
-    };
-
-    await saveTask(data, editId);
-    delete f.dataset.editId;
-    document.getElementById('task-modal-title').textContent = 'Add New Task';
-    setPlanType('daily'); // reset to daily after save
-  });
-  
-  // EXAM FORM
-  document.getElementById('exam-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    await saveExam({
-      name: f.examName.value.trim(),
-      date: f.examDate.value,
-      stage: f.stage.value,
-      notes: f.notes.value.trim()
-    });
-  });
-
-  // PRELIMS FORM
-  document.getElementById('prelims-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    await savePrelimsTest({
-      name: f.testName.value.trim(),
-      total: Number(f.total.value),
-      obtained: Number(f.obtained.value),
-      date: f.date.value
-    });
-  });
-
-  // MAINS FORM
-  document.getElementById('mains-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const f = e.target;
-    await saveMainsTest({
-      subject: f.subject.value.trim(),
-      total: Number(f.total.value),
-      obtained: Number(f.obtained.value),
-      date: f.date.value,
-      remarks: f.remarks.value.trim()
-    });
-  });
-
-  // SCHEDULE FILTER BUTTONS
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      loadSchedule(btn.dataset.filter);
-    });
-  });
-
-  // SIDEBAR TOGGLE (mobile)
-  document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
-    document.getElementById('sidebar')?.classList.toggle('open');
-  });
-
-  // THEME TOGGLE
-  document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme);
-
-  // NAV ITEMS
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => switchSection(item.dataset.section));
-  });
-
-  // AUTH SWITCHERS
-  document.getElementById('go-register')?.addEventListener('click', () => showAuthView('register'));
-  document.getElementById('go-login')?.addEventListener('click', () => showAuthView('login'));
-  document.getElementById('go-forgot')?.addEventListener('click', () => showAuthView('forgot'));
-  document.getElementById('back-to-login')?.addEventListener('click', () => showAuthView('login'));
-
-  // SEARCH SCHEDULE
-  document.getElementById('schedule-search')?.addEventListener('input', e => {
-    const q = e.target.value.toLowerCase();
-    document.querySelectorAll('.schedule-item').forEach(item => {
-      const text = item.textContent.toLowerCase();
-      item.style.display = text.includes(q) ? '' : 'none';
-    });
-  });
-
-  // TABS (tests section)
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(btn.dataset.tab)?.classList.add('active');
-    });
-  });
-
-  // EXPORT PDF
-  document.getElementById('export-pdf-btn')?.addEventListener('click', exportProgressPDF);
-
-  // Close modal on overlay click
-  document.querySelectorAll('.modal-overlay').forEach(m => {
-    m.addEventListener('click', e => {
-      if (e.target === m) closeModal(m.id);
-    });
-  });
-}
 
 // ─────────────────────────────────────────────────────────────
 // THEME
 // ─────────────────────────────────────────────────────────────
-
 function toggleTheme() {
   document.body.classList.toggle('light-mode');
   const isLight = document.body.classList.contains('light-mode');
@@ -1152,8 +788,7 @@ function toggleTheme() {
 }
 
 function applyStoredTheme() {
-  const t = LS.get('theme');
-  if (t === 'light') {
+  if (LS.get('theme') === 'light') {
     document.body.classList.add('light-mode');
     const btn = document.getElementById('theme-toggle');
     if (btn) btn.textContent = '🌙';
@@ -1163,7 +798,6 @@ function applyStoredTheme() {
 // ─────────────────────────────────────────────────────────────
 // AUTH VIEWS
 // ─────────────────────────────────────────────────────────────
-
 function showAuthView(view) {
   document.querySelectorAll('.auth-view').forEach(v => v.classList.remove('active'));
   document.getElementById(`auth-${view}`)?.classList.add('active');
@@ -1185,128 +819,185 @@ function showAuth() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// EXPORT PDF
+// PDF EXPORT
 // ─────────────────────────────────────────────────────────────
-
 async function exportProgressPDF() {
   showToast('Generating PDF...', 'info');
   try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF();
-    pdf.setFontSize(20);
-    pdf.setTextColor(99, 102, 241);
-    pdf.text('Judiciary PrepFlow', 20, 20);
-    pdf.setFontSize(12);
-    pdf.setTextColor(50, 50, 50);
+    pdf.setFontSize(20); pdf.setTextColor(99, 102, 241);
+    pdf.text('JG Lucknow Study Planner', 20, 20);
+    pdf.setFontSize(12); pdf.setTextColor(50, 50, 50);
     pdf.text(`Progress Report — ${currentUser?.displayName || ''}`, 20, 30);
     pdf.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 20, 38);
-
     pdf.setFontSize(10);
     pdf.text(`Total Tests: ${document.getElementById('stat-total-tests')?.textContent || '—'}`, 20, 55);
     pdf.text(`Average Score: ${document.getElementById('stat-avg-score')?.textContent || '—'}`, 20, 63);
     pdf.text(`Schedule Completion: ${document.getElementById('stat-completion')?.textContent || '—'}`, 20, 71);
-
-    pdf.setFontSize(14);
-    pdf.setTextColor(99, 102, 241);
-    pdf.text('SWOT Analysis', 20, 90);
-
-    const swotItems = {
-      Strengths: document.getElementById('swot-strengths'),
-      Weaknesses: document.getElementById('swot-weaknesses'),
-      Opportunities: document.getElementById('swot-opportunities'),
-      Threats: document.getElementById('swot-threats')
-    };
-
-    let y = 100;
-    Object.entries(swotItems).forEach(([label, el]) => {
-      if (!el) return;
-      pdf.setFontSize(11);
-      pdf.setTextColor(50, 50, 50);
-      pdf.text(`${label}:`, 20, y);
-      y += 6;
-      pdf.setFontSize(9);
-      el.querySelectorAll('li').forEach(li => {
-        const text = li.textContent.trim().substring(2); // remove icon
-        pdf.text(`  • ${text}`, 24, y);
-        y += 6;
-        if (y > 280) { pdf.addPage(); y = 20; }
-      });
-      y += 4;
-    });
-
-    pdf.save('Judiciary_Progress_Report.pdf');
+    pdf.save('JG_Progress_Report.pdf');
     showToast('PDF downloaded!', 'success');
   } catch (e) {
-    showToast('PDF export failed. Make sure jsPDF is loaded.', 'error');
+    showToast('PDF export failed.', 'error');
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// FORMS SETUP
+// ─────────────────────────────────────────────────────────────
+function setupForms() {
+
+  // LOGIN
+  document.getElementById('login-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const email = f.email.value.trim();
+    const password = f.password.value;
+    if (!email || !password) { showToast('Please enter email and password.', 'error'); return; }
+    const btn = f.querySelector('button[type="submit"]');
+    btn.textContent = 'Signing in...'; btn.disabled = true;
+    try { await loginUser(email, password); }
+    finally { btn.textContent = 'Sign In →'; btn.disabled = false; }
+  });
+
+  // REGISTER
+  document.getElementById('register-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const name = f.name.value.trim();
+    const email = f.email.value.trim();
+    const password = f.password.value;
+    const confirm = f.confirmPassword.value;
+    if (!name) { showToast('Please enter your full name.', 'error'); return; }
+    if (!email) { showToast('Please enter your email.', 'error'); return; }
+    if (password.length < 6) { showToast('Password must be at least 6 characters.', 'error'); return; }
+    if (password !== confirm) { showToast('Passwords do not match.', 'error'); return; }
+    const btn = f.querySelector('button[type="submit"]');
+    btn.textContent = 'Creating account...'; btn.disabled = true;
+    try { await registerUser(name, email, password); }
+    finally { btn.textContent = 'Create Account →'; btn.disabled = false; }
+  });
+
+  // FORGOT PASSWORD
+  document.getElementById('forgot-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const success = await resetPassword(e.target.email.value.trim());
+    if (success) showAuthView('login');
+  });
+
+  // LOGOUT
+  document.getElementById('logout-btn')?.addEventListener('click', logoutUser);
+
+  // TASK FORM
+  document.getElementById('task-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const editId = f.dataset.editId || null;
+    const planType = document.querySelector('.plan-type-btn.active')?.dataset.type || 'daily';
+    if (!editId && (planType === 'weekly' || planType === 'monthly')) {
+      if (!f.startDate.value || !f.endDate.value) { showToast('Please select start and end dates.', 'error'); return; }
+      if (new Date(f.startDate.value) > new Date(f.endDate.value)) { showToast('Start date must be before end date.', 'error'); return; }
+    } else {
+      if (!f.date.value) { showToast('Please select a date.', 'error'); return; }
+    }
+    await saveTask({
+      subject: f.subject.value.trim(), topic: f.topic.value.trim(),
+      date: f.date.value || f.startDate?.value || '',
+      startDate: f.startDate?.value || '', endDate: f.endDate?.value || '',
+      startTime: f.startTime.value, endTime: f.endTime.value,
+      priority: f.priority.value, category: f.category.value, planType
+    }, editId);
+    delete f.dataset.editId;
+    document.getElementById('task-modal-title').textContent = 'Add New Task';
+    setPlanType('daily');
+  });
+
+  // EXAM FORM
+  document.getElementById('exam-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    await saveExam({ name: f.examName.value.trim(), date: f.examDate.value, stage: f.stage.value, notes: f.notes.value.trim() });
+  });
+
+  // PRELIMS FORM
+  document.getElementById('prelims-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    await savePrelimsTest({ name: f.testName.value.trim(), total: Number(f.total.value), obtained: Number(f.obtained.value), date: f.date.value });
+  });
+
+  // MAINS FORM
+  document.getElementById('mains-form')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    await saveMainsTest({ subject: f.subject.value.trim(), total: Number(f.total.value), obtained: Number(f.obtained.value), date: f.date.value, remarks: f.remarks.value.trim() });
+  });
+
+  // FILTER BUTTONS
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadSchedule(btn.dataset.filter);
+    });
+  });
+
+  // SIDEBAR TOGGLE
+  document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+    document.getElementById('sidebar')?.classList.toggle('open');
+  });
+
+  // THEME
+  document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme);
+
+  // NAV
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => switchSection(item.dataset.section));
+  });
+
+  // AUTH SWITCHERS
+  document.getElementById('go-register')?.addEventListener('click', () => showAuthView('register'));
+  document.getElementById('go-login')?.addEventListener('click', () => showAuthView('login'));
+  document.getElementById('go-forgot')?.addEventListener('click', () => showAuthView('forgot'));
+  document.getElementById('back-to-login')?.addEventListener('click', () => showAuthView('login'));
+
+  // SEARCH
+  document.getElementById('schedule-search')?.addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('.schedule-item').forEach(item => {
+      item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+
+  // TABS
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab)?.classList.add('active');
+    });
+  });
+
+  // PDF EXPORT
+  document.getElementById('export-pdf-btn')?.addEventListener('click', exportProgressPDF);
+
+  // CLOSE MODAL ON OVERLAY CLICK
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────
-
 document.addEventListener('DOMContentLoaded', () => {
   applyStoredTheme();
   setupForms();
-
-  // Set today's date as default in task form
   const taskDateInput = document.querySelector('#task-form [name="date"]');
   if (taskDateInput) taskDateInput.value = today();
-
-  // Auth state observer
   onAuthStateChanged(auth, user => {
     if (user) showApp(user);
     else showAuth();
   });
-/** Load faculty messages for the student */
-async function loadInbox() {
-  const container = document.getElementById('inbox-list');
-  if (!container || !currentUser) return;
-  try {
-    const snap = await getDocs(
-      query(
-        collection(db, 'users', currentUser.uid, 'messages'),
-        orderBy('createdAt', 'desc')
-      )
-    );
-    if (snap.empty) {
-      container.innerHTML = '<p class="empty-msg">No messages from faculty yet.</p>';
-      return;
-    }
-    const typeIcons = {
-      feedback: '📋', warning: '⚠️', praise: '🌟',
-      task: '📌', announcement: '📣', reminder: '⏰', motivation: '💪'
-    };
-    container.innerHTML = snap.docs.map(d => {
-      const m = d.data();
-      const time = m.createdAt?.toDate
-        ? m.createdAt.toDate().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
-        : '—';
-      const icon = typeIcons[m.msgType] || '💬';
-      return `
-        <div class="card" style="margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <div style="display:flex;align-items:center;gap:10px">
-              <span style="font-size:22px">${icon}</span>
-              <div>
-                <div style="font-weight:700;font-size:15px">${m.subject || 'Message'}</div>
-                <div style="font-size:12px;color:var(--text-muted)">From: ${m.fromName || 'Faculty'} &nbsp;•&nbsp; ${time}</div>
-              </div>
-            </div>
-            ${m.isBroadcast ? '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--accent-light);color:var(--accent)">Broadcast</span>' : ''}
-          </div>
-          <p style="font-size:14px;color:var(--text-secondary);line-height:1.7">${m.message || ''}</p>
-        </div>`;
-    }).join('');
-
-    // Update badge count
-    const badge = document.getElementById('inbox-badge');
-    if (badge) {
-      badge.textContent = snap.size;
-      badge.style.display = snap.size > 0 ? 'inline' : 'none';
-    }
-  } catch (e) {
-    container.innerHTML = `<p class="empty-msg">Could not load messages: ${e.message}</p>`;
-  }
-}
 });
