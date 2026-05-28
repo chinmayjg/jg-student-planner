@@ -117,22 +117,38 @@ async function calculateStreak() {
 
 /** Register new user */
 async function registerUser(name, email, password) {
+  let cred = null;
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    // Step 1 — Create auth account
+    cred = await createUserWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    showToast(getAuthError(err.code), 'error');
+    return;
+  }
+
+  try {
+    // Step 2 — Set display name
     await updateProfile(cred.user, { displayName: name });
-    // Create user profile doc in Firestore
+  } catch (err) {
+    // Non-critical — continue even if this fails
+    console.warn('Could not set display name:', err.message);
+  }
+
+  try {
+    // Step 3 — Create Firestore profile
     await setDoc(doc(db, 'users', cred.user.uid), {
-      name, email,
+      name: name,
+      email: email,
       createdAt: serverTimestamp(),
       theme: 'dark'
     });
-    showToast('Account created successfully! Welcome aboard 🎉', 'success');
   } catch (err) {
-    showToast(getAuthError(err.code), 'error');
-    throw err;
+    // Non-critical — profile can be created later on login
+    console.warn('Could not create Firestore profile:', err.message);
   }
-}
 
+  showToast('Account created successfully! Welcome aboard 🎉', 'success');
+}
 /** Login user */
 async function loginUser(email, password) {
   try {
@@ -915,20 +931,68 @@ function setupForms() {
   // LOGIN FORM
   document.getElementById('login-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const email = e.target.email.value.trim();
-    const password = e.target.password.value;
-    await loginUser(email, password);
+    const f = e.target;
+    const email = f.email.value.trim();
+    const password = f.password.value;
+
+    if (!email || !password) {
+      showToast('Please enter both email and password.', 'error');
+      return;
+    }
+
+    // Disable button to prevent double clicks
+    const btn = f.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.textContent = 'Signing in...';
+    btn.disabled = true;
+
+    try {
+      await loginUser(email, password);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
   });
 
   // REGISTER FORM
   document.getElementById('register-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const name = e.target.name.value.trim();
-    const email = e.target.email.value.trim();
-    const password = e.target.password.value;
-    const confirm = e.target.confirmPassword.value;
-    if (password !== confirm) { showToast('Passwords do not match.', 'error'); return; }
-    await registerUser(name, email, password);
+    const f = e.target;
+    const name = f.name.value.trim();
+    const email = f.email.value.trim();
+    const password = f.password.value;
+    const confirm = f.confirmPassword.value;
+
+    // Validation checks
+    if (!name) {
+      showToast('Please enter your full name.', 'error');
+      return;
+    }
+    if (!email) {
+      showToast('Please enter your email address.', 'error');
+      return;
+    }
+    if (password.length < 6) {
+      showToast('Password must be at least 6 characters.', 'error');
+      return;
+    }
+    if (password !== confirm) {
+      showToast('Passwords do not match.', 'error');
+      return;
+    }
+
+    // Disable button to prevent double clicks
+    const btn = f.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.textContent = 'Creating account...';
+    btn.disabled = true;
+
+    try {
+      await registerUser(name, email, password);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
   });
 
   // FORGOT PASSWORD FORM
