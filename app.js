@@ -827,11 +827,13 @@ window.switchSection = function(sectionId) {
 
   // Load data for the section
   switch (sectionId) {
-    case 'dashboard': loadDashboard(); break;
-    case 'schedule': loadSchedule('today'); break;
-    case 'exams': loadExams(); break;
-    case 'tests': loadTests(); break;
-    case 'progress': loadProgress(); break;
+      case 'dashboard': loadDashboard(); break;
+      case 'schedule': loadSchedule('today'); break;
+      case 'exams': loadExams(); break;
+      case 'tests': loadTests(); break;
+      case 'progress': loadProgress(); break;
+      case 'inbox': loadInbox(); break;
+    }
   }
 };
 
@@ -1192,4 +1194,55 @@ document.addEventListener('DOMContentLoaded', () => {
     if (user) showApp(user);
     else showAuth();
   });
+/** Load faculty messages for the student */
+async function loadInbox() {
+  const container = document.getElementById('inbox-list');
+  if (!container || !currentUser) return;
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'users', currentUser.uid, 'messages'),
+        orderBy('createdAt', 'desc')
+      )
+    );
+    if (snap.empty) {
+      container.innerHTML = '<p class="empty-msg">No messages from faculty yet.</p>';
+      return;
+    }
+    const typeIcons = {
+      feedback: '📋', warning: '⚠️', praise: '🌟',
+      task: '📌', announcement: '📣', reminder: '⏰', motivation: '💪'
+    };
+    container.innerHTML = snap.docs.map(d => {
+      const m = d.data();
+      const time = m.createdAt?.toDate
+        ? m.createdAt.toDate().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })
+        : '—';
+      const icon = typeIcons[m.msgType] || '💬';
+      return `
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:22px">${icon}</span>
+              <div>
+                <div style="font-weight:700;font-size:15px">${m.subject || 'Message'}</div>
+                <div style="font-size:12px;color:var(--text-muted)">From: ${m.fromName || 'Faculty'} &nbsp;•&nbsp; ${time}</div>
+              </div>
+            </div>
+            ${m.isBroadcast ? '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--accent-light);color:var(--accent)">Broadcast</span>' : ''}
+          </div>
+          <p style="font-size:14px;color:var(--text-secondary);line-height:1.7">${m.message || ''}</p>
+        </div>`;
+    }).join('');
+
+    // Update badge count
+    const badge = document.getElementById('inbox-badge');
+    if (badge) {
+      badge.textContent = snap.size;
+      badge.style.display = snap.size > 0 ? 'inline' : 'none';
+    }
+  } catch (e) {
+    container.innerHTML = `<p class="empty-msg">Could not load messages: ${e.message}</p>`;
+  }
+}
 });

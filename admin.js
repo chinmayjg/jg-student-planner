@@ -580,21 +580,43 @@ function buildClassSubjectChart(mainsTests) {
 // MESSAGES
 // ─────────────────────────────────────────────────────────────
 async function sendMessage(studentUid, msgType, subject, message, isBroadcast = false) {
+  if (!studentUid) throw new Error('No student selected');
+  if (!currentFaculty) throw new Error('Not logged in');
+
   const msgData = {
-    from: currentFaculty.email,
-    fromName: currentFaculty.displayName || 'Faculty',
+    from: currentFaculty.email || '',
+    fromName: currentFaculty.displayName || currentFaculty.email || 'Faculty',
     to: studentUid,
-    msgType, subject, message,
-    isBroadcast,
+    msgType: msgType || 'feedback',
+    subject: subject || '',
+    message: message || '',
+    isBroadcast: isBroadcast || false,
     createdAt: serverTimestamp(),
     read: false
   };
-  // Store in student's messages subcollection so they can read it
-  await addDoc(collection(db, 'users', studentUid, 'messages'), msgData);
-  // Also store in faculty's sent collection
-  await addDoc(collection(db, 'faculty_messages'), { ...msgData, studentUid });
-}
 
+  try {
+    // Store in student's messages subcollection
+    await addDoc(
+      collection(db, 'users', studentUid, 'messages'),
+      msgData
+    );
+  } catch (e) {
+    console.error('Failed to write to student messages:', e);
+    throw new Error('Could not deliver message to student: ' + e.message);
+  }
+
+  try {
+    // Store in faculty sent messages collection
+    await addDoc(
+      collection(db, 'faculty_messages'),
+      { ...msgData, studentUid }
+    );
+  } catch (e) {
+    console.error('Failed to write to faculty_messages:', e);
+    throw new Error('Could not save sent message: ' + e.message);
+  }
+}
 async function loadSentMessages(studentUid) {
   const container = document.getElementById('sent-messages-list');
   if (!container) return;
@@ -722,32 +744,82 @@ function setupForms() {
   // Feedback form (send to single student)
   document.getElementById('feedback-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    if (!selectedStudent) return;
+    if (!selectedStudent || !selectedStudent.uid) {
+      showToast('No student selected. Please go back and select a student.', 'error');
+      return;
+    }
     const f = e.target;
+    const btn = f.querySelector('button[type="submit"]');
+    btn.textContent = 'Sending...';
+    btn.disabled = true;
     try {
-      await sendMessage(selectedStudent.uid, f.msgType.value, f.subject.value.trim(), f.message.value.trim());
-      showToast(`Message sent to ${selectedStudent.name}!`, 'success');
+      await sendMessage(
+        selectedStudent.uid,
+        f.msgType.value,
+        f.subject.value.trim(),
+        f.message.value.trim()
+      );
+      showToast(`✅ Message sent to ${selectedStudent.name || 'student'}!`, 'success');
       f.reset();
       loadSentMessages(selectedStudent.uid);
-    } catch { showToast('Failed to send message.', 'error'); }
+    } catch (err) {
+      showToast('Failed to send: ' + err.message, 'error');
+      console.error(err);
+    } finally {
+      btn.textContent = 'Send Message →';
+      btn.disabled = false;
+    }
   });
 
   // Broadcast form
   document.getElementById('broadcast-form')?.addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
+    const btn = f.querySelector('button[type="submit"]');
+
+    // Load students if not already loaded
     const students = allStudents.length > 0 ? allStudents : await loadAllStudents();
-    if (students.length === 0) { showToast('No students found.', 'warning'); return; }
+
+    if (students.length === 0) {
+      showToast('No students found. Make sure students have registered.', 'warning');
+      return;
+    }
+
     if (!confirm(`Send this message to all ${students.length} students?`)) return;
 
-    try {
-      await Promise.all(students.map(s =>
-        sendMessage(s.uid, f.msgType.value, f.subject.value.trim(), f.message.value.trim(), true)
-      ));
-      showToast(`📢 Broadcast sent to ${students.length} students!`, 'success');
-      f.reset();
-      loadAllConversations();
-    } catch { showToast('Broadcast failed.', 'error'); }
+    btn.textContent = `Sending to ${students.length} students...`;
+    btn.disabled = true;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // Send one by one so a single failure doesn't stop others
+    for (const s of students) {
+      try {
+        await sendMessage(
+          s.uid,
+          f.msgType.value,
+          f.subject.value.trim(),
+          f.message.value.trim(),
+          true
+        );
+        successCount++;
+      } catch (err) {
+        console.error(`Failed for ${s.name}:`, err);
+        failCount++;
+      }
+    }
+
+    if (failCount === 0) {
+      showToast(`📢 Broadcast sent to all ${successCount} students!`, 'success');
+    } else {
+      showToast(`⚠️ Sent to ${successCount} students. Failed for ${failCount}.`, 'warning');
+    }
+
+    f.reset();
+    btn.textContent = '📢 Send to All Students';
+    btn.disabled = false;
+    loadAllConversations();
   });
 
   // Schedule filters (in schedules section)

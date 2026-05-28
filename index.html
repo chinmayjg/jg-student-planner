@@ -124,6 +124,10 @@
       <div class="nav-item" data-section="progress">
         <span class="nav-icon">📊</span> Progress Report
       </div>
+      <div class="nav-item" data-section="inbox">
+        <span class="nav-icon">💬</span> Messages
+        <span id="inbox-badge" style="display:none;margin-left:auto;background:#ef4444;color:white;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px">0</span>
+      </div>
     </nav>
 
     <div class="sidebar-footer">
@@ -395,6 +399,16 @@
         </div>
 
       </div>
+<!-- INBOX SECTION -->
+      <div id="section-inbox" class="section">
+        <div class="section-header">
+          <h2>💬 Messages from Faculty</h2>
+        </div>
+        <div id="inbox-list">
+          <p class="empty-msg">No messages yet.</p>
+        </div>
+      </div>
+
     </main>
   </div><!-- /main-content -->
 </div><!-- /app-container -->
