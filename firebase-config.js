@@ -1,9 +1,11 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// firebase-config.js — JG Lucknow Study Planner
 
-// Your web app's Firebase configuration
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ⚠️ REPLACE these values with your actual Firebase project config
+// Firebase Console → Project Settings → Your Apps → Web App → Config
 const firebaseConfig = {
   apiKey: "AIzaSyANEuLrhnIgsYGDzUwbaDUl7Ys86dxLYCU",
   authDomain: "jg-lucknow-study-planner.firebaseapp.com",
@@ -13,5 +15,7 @@ const firebaseConfig = {
   appId: "1:933835045526:web:8d5d01f4621ad312faa0b7"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export default app;

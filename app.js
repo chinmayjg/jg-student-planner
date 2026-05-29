@@ -678,7 +678,10 @@ async function loadInbox() {
     const snap = await getDocs(
       query(collection(db, 'users', currentUser.uid, 'messages'), orderBy('createdAt', 'desc'))
     );
-    if (snap.empty) { container.innerHTML = '<p class="empty-msg">No messages from faculty yet.</p>'; return; }
+    if (snap.empty) {
+      container.innerHTML = '<p class="empty-msg">No messages from faculty yet.</p>';
+      return;
+    }
     const typeIcons = { feedback: '📋', warning: '⚠️', praise: '🌟', task: '📌', announcement: '📣', reminder: '⏰', motivation: '💪' };
     container.innerHTML = snap.docs.map(d => {
       const m = d.data();
@@ -698,7 +701,10 @@ async function loadInbox() {
       </div>`;
     }).join('');
     const badge = document.getElementById('inbox-badge');
-    if (badge) { badge.textContent = snap.size; badge.style.display = snap.size > 0 ? 'inline' : 'none'; }
+    if (badge) {
+      badge.textContent = snap.size;
+      badge.style.display = snap.size > 0 ? 'inline' : 'none';
+    }
   } catch (e) {
     container.innerHTML = `<p class="empty-msg">Could not load messages: ${e.message}</p>`;
   }
@@ -716,15 +722,15 @@ window.switchSection = function(sectionId) {
   document.getElementById('sidebar')?.classList.remove('open');
   switch (sectionId) {
     case 'dashboard': loadDashboard(); break;
-    case 'schedule': loadSchedule('today'); break;
-    case 'exams': loadExams(); break;
-    case 'tests': loadTests(); break;
-    case 'progress': loadProgress(); break;
-    case 'inbox': loadInbox(); break;
+    case 'schedule':  loadSchedule('today'); break;
+    case 'exams':     loadExams(); break;
+    case 'tests':     loadTests(); break;
+    case 'progress':  loadProgress(); break;
+    case 'inbox':     loadInbox(); break;
   }
 };
 
-window.openModal = function(id) { document.getElementById(id)?.classList.add('active'); };
+window.openModal  = function(id) { document.getElementById(id)?.classList.add('active'); };
 window.closeModal = function(id) {
   document.getElementById(id)?.classList.remove('active');
   const form = document.querySelector(`#${id} form`);
@@ -742,13 +748,13 @@ window.openEditTask = async function(taskId) {
     if (!snap.exists()) return;
     const t = snap.data();
     const form = document.getElementById('task-form');
-    form.querySelector('[name="subject"]').value = t.subject || '';
-    form.querySelector('[name="topic"]').value = t.topic || '';
-    form.querySelector('[name="date"]').value = t.date || '';
+    form.querySelector('[name="subject"]').value   = t.subject   || '';
+    form.querySelector('[name="topic"]').value     = t.topic     || '';
+    form.querySelector('[name="date"]').value      = t.date      || '';
     form.querySelector('[name="startTime"]').value = t.startTime || '';
-    form.querySelector('[name="endTime"]').value = t.endTime || '';
-    form.querySelector('[name="priority"]').value = t.priority || 'medium';
-    form.querySelector('[name="category"]').value = t.category || 'law';
+    form.querySelector('[name="endTime"]').value   = t.endTime   || '';
+    form.querySelector('[name="priority"]').value  = t.priority  || 'medium';
+    form.querySelector('[name="category"]').value  = t.category  || 'law';
     form.dataset.editId = taskId;
     document.getElementById('task-modal-title').textContent = 'Edit Task';
     openModal('task-modal');
@@ -758,22 +764,24 @@ window.openEditTask = async function(taskId) {
 window.setPlanType = function(type) {
   document.querySelectorAll('.plan-type-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.type === type));
   const singleDate = document.getElementById('field-single-date');
-  const rangeDate = document.getElementById('field-date-range');
-  const hint = document.getElementById('range-hint');
-  const dateInput = document.querySelector('#task-form [name="date"]');
+  const rangeDate  = document.getElementById('field-date-range');
+  const hint       = document.getElementById('range-hint');
+  const dateInput  = document.querySelector('#task-form [name="date"]');
   const startInput = document.querySelector('#task-form [name="startDate"]');
-  const endInput = document.querySelector('#task-form [name="endDate"]');
+  const endInput   = document.querySelector('#task-form [name="endDate"]');
   if (type === 'daily') {
     singleDate.style.display = 'block'; rangeDate.style.display = 'none';
     dateInput.required = true;
     if (startInput) startInput.required = false;
-    if (endInput) endInput.required = false;
+    if (endInput)   endInput.required   = false;
   } else {
     singleDate.style.display = 'none'; rangeDate.style.display = 'block';
     dateInput.required = false;
     if (startInput) startInput.required = true;
-    if (endInput) endInput.required = true;
-    if (hint) hint.textContent = type === 'weekly' ? '📌 Tasks created for each day of the week range' : '📌 Tasks created for each day of the month range';
+    if (endInput)   endInput.required   = true;
+    if (hint) hint.textContent = type === 'weekly'
+      ? '📌 Tasks created for each day of the week range'
+      : '📌 Tasks created for each day of the month range';
   }
 };
 
@@ -806,7 +814,7 @@ function showAuthView(view) {
 function showApp(user) {
   currentUser = user;
   document.getElementById('auth-container').style.display = 'none';
-  document.getElementById('app-container').style.display = 'flex';
+  document.getElementById('app-container').style.display  = 'flex';
   document.getElementById('user-name-display').textContent = user.displayName || user.email;
   switchSection('dashboard');
 }
@@ -814,7 +822,7 @@ function showApp(user) {
 function showAuth() {
   currentUser = null;
   document.getElementById('auth-container').style.display = 'flex';
-  document.getElementById('app-container').style.display = 'none';
+  document.getElementById('app-container').style.display  = 'none';
   showAuthView('login');
 }
 
@@ -851,7 +859,7 @@ function setupForms() {
   document.getElementById('login-form')?.addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
-    const email = f.email.value.trim();
+    const email    = f.email.value.trim();
     const password = f.password.value;
     if (!email || !password) { showToast('Please enter email and password.', 'error'); return; }
     const btn = f.querySelector('button[type="submit"]');
@@ -863,15 +871,15 @@ function setupForms() {
   // REGISTER
   document.getElementById('register-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const f = e.target;
-    const name = f.name.value.trim();
-    const email = f.email.value.trim();
+    const f       = e.target;
+    const name    = f.name.value.trim();
+    const email   = f.email.value.trim();
     const password = f.password.value;
-    const confirm = f.confirmPassword.value;
-    if (!name) { showToast('Please enter your full name.', 'error'); return; }
-    if (!email) { showToast('Please enter your email.', 'error'); return; }
-    if (password.length < 6) { showToast('Password must be at least 6 characters.', 'error'); return; }
-    if (password !== confirm) { showToast('Passwords do not match.', 'error'); return; }
+    const confirm  = f.confirmPassword.value;
+    if (!name)              { showToast('Please enter your full name.', 'error'); return; }
+    if (!email)             { showToast('Please enter your email.', 'error'); return; }
+    if (password.length < 6){ showToast('Password must be at least 6 characters.', 'error'); return; }
+    if (password !== confirm){ showToast('Passwords do not match.', 'error'); return; }
     const btn = f.querySelector('button[type="submit"]');
     btn.textContent = 'Creating account...'; btn.disabled = true;
     try { await registerUser(name, email, password); }
@@ -891,8 +899,8 @@ function setupForms() {
   // TASK FORM
   document.getElementById('task-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const f = e.target;
-    const editId = f.dataset.editId || null;
+    const f        = e.target;
+    const editId   = f.dataset.editId || null;
     const planType = document.querySelector('.plan-type-btn.active')?.dataset.type || 'daily';
     if (!editId && (planType === 'weekly' || planType === 'monthly')) {
       if (!f.startDate.value || !f.endDate.value) { showToast('Please select start and end dates.', 'error'); return; }
@@ -901,11 +909,16 @@ function setupForms() {
       if (!f.date.value) { showToast('Please select a date.', 'error'); return; }
     }
     await saveTask({
-      subject: f.subject.value.trim(), topic: f.topic.value.trim(),
-      date: f.date.value || f.startDate?.value || '',
-      startDate: f.startDate?.value || '', endDate: f.endDate?.value || '',
-      startTime: f.startTime.value, endTime: f.endTime.value,
-      priority: f.priority.value, category: f.category.value, planType
+      subject:   f.subject.value.trim(),
+      topic:     f.topic.value.trim(),
+      date:      f.date.value || f.startDate?.value || '',
+      startDate: f.startDate?.value || '',
+      endDate:   f.endDate?.value   || '',
+      startTime: f.startTime.value,
+      endTime:   f.endTime.value,
+      priority:  f.priority.value,
+      category:  f.category.value,
+      planType
     }, editId);
     delete f.dataset.editId;
     document.getElementById('task-modal-title').textContent = 'Add New Task';
@@ -950,15 +963,15 @@ function setupForms() {
   // THEME
   document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme);
 
-  // NAV
+  // NAV ITEMS
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => switchSection(item.dataset.section));
   });
 
   // AUTH SWITCHERS
-  document.getElementById('go-register')?.addEventListener('click', () => showAuthView('register'));
-  document.getElementById('go-login')?.addEventListener('click', () => showAuthView('login'));
-  document.getElementById('go-forgot')?.addEventListener('click', () => showAuthView('forgot'));
+  document.getElementById('go-register')?.addEventListener('click',   () => showAuthView('register'));
+  document.getElementById('go-login')?.addEventListener('click',      () => showAuthView('login'));
+  document.getElementById('go-forgot')?.addEventListener('click',     () => showAuthView('forgot'));
   document.getElementById('back-to-login')?.addEventListener('click', () => showAuthView('login'));
 
   // SEARCH
